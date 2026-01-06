@@ -1,0 +1,20 @@
+{
+  "name": "@mandate/examples",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "pre-commit-agent": "node dist/pre-commit-agent.js",
+    "observe-agent": "node dist/observe-agent.js",
+    "pause-escalation-agent": "node dist/pause-escalation-agent.js"
+  },
+  "dependencies": {
+    "@mandate/sdk": "workspace:*",
+    "@mandate/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
