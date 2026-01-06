@@ -1,0 +1,108 @@
+{
+  "$schema": "https://cursor.sh/schema/rules.json",
+  "rules": [
+    {
+      "name": "mandate-control-plane-invariant",
+      "description": "Mandate is an AI Control Plane, not an execution or orchestration system.",
+      "severity": "error",
+      "when": {
+        "any": [
+          {
+            "matches": "execute|run|perform|orchestrate|retry|compensate"
+          },
+          {
+            "matches": "workflow|pipeline|job|task queue"
+          }
+        ]
+      },
+      "message": "Mandate must not execute actions, orchestrate workflows, or manage retries. This violates RFC-001."
+    },
+    {
+      "name": "evaluator-purity",
+      "description": "Evaluator must be pure, deterministic, and stateless.",
+      "severity": "error",
+      "when": {
+        "all": [
+          {
+            "path": "packages/server/src/evaluator/**"
+          },
+          {
+            "any": [
+              {
+                "matches": "Date\\.|Math\\.random|setTimeout|setInterval"
+              },
+              {
+                "matches": "fetch\\(|axios|http|https"
+              },
+              {
+                "matches": "db\\.|repository|sql|knex|prisma"
+              }
+            ]
+          }
+        ]
+      },
+      "message": "Evaluator code must be pure and deterministic. No time, randomness, DB, or network access allowed."
+    },
+    {
+      "name": "no-logic-in-shared",
+      "description": "Shared package must contain only types and schemas.",
+      "severity": "error",
+      "when": {
+        "all": [
+          {
+            "path": "packages/shared/**"
+          },
+          {
+            "matches": "function|class|if\\(|for\\(|while\\("
+          }
+        ]
+      },
+      "message": "packages/shared must contain only type definitions and schemas. No runtime logic allowed."
+    },
+    {
+      "name": "no-logic-in-sdk",
+      "description": "SDK must remain a thin client with no governance logic.",
+      "severity": "warning",
+      "when": {
+        "all": [
+          {
+            "path": "packages/sdk/**"
+          },
+          {
+            "matches": "if\\(|switch\\(|evaluate|policy|verdict"
+          }
+        ]
+      },
+      "message": "SDK should not interpret or evaluate governance logic. Ensure this is a thin HTTP wrapper only."
+    },
+    {
+      "name": "append-only-database",
+      "description": "Database writes must be append-only.",
+      "severity": "error",
+      "when": {
+        "any": [
+          {
+            "matches": "UPDATE\\s+|DELETE\\s+"
+          }
+        ]
+      },
+      "message": "Mandate requires append-only storage. UPDATE or DELETE statements are not allowed."
+    },
+    {
+      "name": "policy-not-code",
+      "description": "Policies must not behave like programs.",
+      "severity": "error",
+      "when": {
+        "all": [
+          {
+            "path": "**/*.json"
+          },
+          {
+            "matches": "function|script|expression|eval"
+          }
+        ]
+      },
+      "message": "Policies are assertions, not executable logic. Remove programmatic constructs."
+    }
+  ]
+}
