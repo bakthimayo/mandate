@@ -20,6 +20,19 @@ Documentation/planning phase. No code implemented yet.
 ## Implementation Order
 1. Shared types → 2. DB migrations → 3. Evaluator → 4. APIs → 5. SDK → 6. Examples
 
+## RFC-002: Organizational Scope & Governance Isolation
+
+**This is NOT a SaaS system.**
+
+Rules:
+- Organization and domain are logical governance boundaries only
+- Do not introduce tenants, customers, accounts, or billing concepts
+- Do not introduce authentication or IAM logic
+- Do not add infrastructure-level isolation
+- Isolation is enforced via schemas, scope matching, and queries
+
+⚠️ If a requirement resembles SaaS tenancy, STOP and ask for clarification.
+
 ## Key Concepts
 - **Decision Events:** Core input representing an action attempt
 - **Verdicts:** ALLOW | PAUSE | BLOCK | OBSERVE

@@ -31,27 +31,28 @@ export type Source = z.infer<typeof SourceSchema>;
 
 /**
  * Scope defines where policies apply.
- * All selector fields must match; missing fields act as wildcards.
- * Empty selector applies globally.
- * @see RFC-001 Section 8
+ * organization_id and domain are required governance boundaries.
+ * Other selector fields must match; missing fields act as wildcards.
+ * @see RFC-001 Section 8, RFC-002
  */
 export const ScopeSchema = z.object({
-  domain: z.string().optional(),
+  organization_id: z.string(),
+  domain: z.string(),
   service: z.string().optional(),
   agent: z.string().optional(),
   system: z.string().optional(),
   environment: z.string().optional(),
-  tenant: z.string().optional(),
 });
 export type Scope = z.infer<typeof ScopeSchema>;
 
 /**
  * A DecisionEvent declares intent to perform an action.
  * Immutable, append-only, contextual (not executable).
- * @see RFC-001 Section 5.1
+ * @see RFC-001 Section 5.1, RFC-002
  */
 export const DecisionEventSchema = z.object({
   decision_id: z.string(),
+  organization_id: z.string(),
   intent: z.string(),
   stage: StageSchema,
   actor: z.string(),
@@ -125,10 +126,11 @@ export type PolicyCondition = z.infer<typeof PolicyConditionSchema>;
 /**
  * A policy expressing a governance constraint.
  * Must be single-event, deterministic, stateless, and explainable.
- * @see RFC-001 Section 9
+ * @see RFC-001 Section 9, RFC-002
  */
 export const PolicySchema = z.object({
   id: z.string(),
+  organization_id: z.string(),
   name: z.string(),
   description: z.string(),
   scope: ScopeSchema,
