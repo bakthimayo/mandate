@@ -11,7 +11,8 @@ import type { IsolationContext } from './isolation-context.js';
 import { validateIsolationContext } from './isolation-context.js';
 
 /**
- * Inserts a VerdictEvent with organization and domain attribution.
+ * Inserts a VerdictEvent with organization, domain, spec, and scope attribution.
+ * RFC-002: Enforces spec_id, scope_id, and domain in audit record.
  * Requires IsolationContext to enforce RFC-002 boundaries.
  */
 export async function insertVerdictEvent(
@@ -20,11 +21,32 @@ export async function insertVerdictEvent(
 ): Promise<void> {
   validateIsolationContext(ctx);
 
+  // RFC-002: Require spec_id for all verdicts (fail fast on incomplete data)
+  if (!event.spec_id) {
+    throw new Error(
+      `RFC-002 violation: VerdictEvent missing required spec_id (verdict_id: ${event.verdict_id})`
+    );
+  }
+
+  // RFC-002: Require scope_id for all verdicts
+  if (!event.scope_id) {
+    throw new Error(
+      `RFC-002 violation: VerdictEvent missing required scope_id (verdict_id: ${event.verdict_id})`
+    );
+  }
+
+  // RFC-002: Require domain for auditability
+  if (!event.domain) {
+    throw new Error(
+      `RFC-002 violation: VerdictEvent missing required domain (verdict_id: ${event.verdict_id})`
+    );
+  }
+
   const pool = getPool();
   await pool.query(
     `INSERT INTO mandate.verdict_events 
-     (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+     (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_id, spec_id, scope_id, domain, owning_team)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       event.verdict_id,
       event.decision_id,
@@ -34,12 +56,17 @@ export async function insertVerdictEvent(
       event.timestamp,
       ctx.organization_id,
       ctx.domain_id,
+      event.spec_id,
+      event.scope_id,
+      event.domain,
+      event.owning_team ?? null,
     ]
   );
 }
 
 /**
  * Retrieves a VerdictEvent by ID within isolation boundaries.
+ * RFC-002: Returns verdict with spec_id, scope_id, and domain for auditability.
  * Returns null if not found or outside isolation context.
  */
 export async function getVerdictEventById(
@@ -56,8 +83,13 @@ export async function getVerdictEventById(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    spec_id: string;
+    spec_version: string;
+    scope_id: string;
+    domain: string;
+    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
      FROM mandate.verdict_events
      WHERE verdict_id = $1
        AND organization_id = $2
@@ -77,11 +109,17 @@ export async function getVerdictEventById(
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
+    spec_id: row.spec_id,
+    spec_version: row.spec_version,
+    scope_id: row.scope_id,
+    domain: row.domain,
+    owning_team: row.owning_team,
   };
 }
 
 /**
  * Retrieves VerdictEvent by decision_id within isolation boundaries.
+ * RFC-002: Returns verdict with spec_id, scope_id, and domain for auditability.
  * Returns null if not found or outside isolation context.
  */
 export async function getVerdictEventByDecisionId(
@@ -98,8 +136,13 @@ export async function getVerdictEventByDecisionId(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    spec_id: string;
+    spec_version: string;
+    scope_id: string;
+    domain: string;
+    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
      FROM mandate.verdict_events
      WHERE decision_id = $1
        AND organization_id = $2
@@ -121,11 +164,17 @@ export async function getVerdictEventByDecisionId(
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
+    spec_id: row.spec_id,
+    spec_version: row.spec_version,
+    scope_id: row.scope_id,
+    domain: row.domain,
+    owning_team: row.owning_team,
   };
 }
 
 /**
  * Lists VerdictEvents within isolation boundaries.
+ * RFC-002: Returns verdicts with spec_id, scope_id, and domain for auditability.
  * No cross-domain aggregation.
  */
 export async function listVerdictEvents(
@@ -145,8 +194,13 @@ export async function listVerdictEvents(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    spec_id: string;
+    spec_version: string;
+    scope_id: string;
+    domain: string;
+    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
      FROM mandate.verdict_events
      WHERE organization_id = $1
        AND domain_id = $2
@@ -162,5 +216,10 @@ export async function listVerdictEvents(
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
+    spec_id: row.spec_id,
+    spec_version: row.spec_version,
+    scope_id: row.scope_id,
+    domain: row.domain,
+    owning_team: row.owning_team,
   }));
 }

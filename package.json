@@ -1,0 +1,16 @@
+{
+  "name": "mandate",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
+    "start": "pnpm --filter @mandate/server start",
+    "examples:pre-commit-agent": "pnpm --filter @mandate/examples pre-commit-agent",
+    "examples:observe-agent": "pnpm --filter @mandate/examples observe-agent",
+    "examples:pause-escalation-agent": "pnpm --filter @mandate/examples pause-escalation-agent",
+    "db:migrate": "psql $DATABASE_URL -f migrations/000_drop_schema.sql && psql $DATABASE_URL -f migrations/001_initial_schema.sql && psql $DATABASE_URL -f migrations/002_organizational_scope.sql && psql $DATABASE_URL -f migrations/003_example_test_data.sql && psql $DATABASE_URL -f migrations/004_example_policy_snapshot.sql && psql $DATABASE_URL -f migrations/005_decision_specs.sql && psql $DATABASE_URL -f migrations/006_sample_specs_and_policies.sql && psql $DATABASE_URL -f migrations/007_add_scope_and_domain_to_verdict_events.sql && psql $DATABASE_URL -f migrations/008_fix_consolidated_policy_snapshot.sql",
+    "db:reset": "psql $DATABASE_URL -f migrations/000_drop_schema.sql"
+  }
+}

@@ -24,7 +24,7 @@ const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const DOMAIN = 'config-management';
 
 const client = new MandateClient({
-  baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
+  baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3001',
   apiKey: process.env.MANDATE_API_KEY,
 });
 
@@ -123,12 +123,13 @@ async function preCommitAgent(): Promise<void> {
     actor: 'pre-commit-agent',
     target: action.path,
     context: {
-      content_length: action.content.length,
+      content_length: 1000000000,
       content_type: 'yaml',
     },
     scope: {
       domain: DOMAIN,
       service: 'config-writer',
+      agent: 'pre-commit-agent',
       environment: 'production',
     },
   });

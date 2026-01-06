@@ -272,8 +272,8 @@ export async function observabilityRoutes(
       let { organization_id, domain } = request.query;
 
       // Get decision to extract org/domain if not provided
-      let organization_id_resolved = organization_id;
-      let domain_id_resolved: string | null = null;
+      let organization_id_resolved: string | undefined = organization_id;
+      let domain_id_resolved: string | undefined = undefined;
 
       if (!organization_id || !domain) {
         const pool = getPool();
@@ -312,12 +312,19 @@ export async function observabilityRoutes(
           }
         }
       } else {
-        domain_id_resolved = await resolveDomainId(organization_id, domain);
-        if (!domain_id_resolved) {
+        const resolved = await resolveDomainId(organization_id, domain);
+        if (!resolved) {
           return reply.status(404).send({
             error: 'Domain not found',
           });
         }
+        domain_id_resolved = resolved;
+      }
+
+      if (!organization_id_resolved || !domain_id_resolved) {
+        return reply.status(400).send({
+          error: 'Missing organization_id or domain',
+        });
       }
 
       const ctx = createIsolationContext(organization_id_resolved, domain_id_resolved);

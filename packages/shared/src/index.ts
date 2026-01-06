@@ -11,6 +11,12 @@ export {
   PolicyConditionSchema,
   PolicySchema,
   PolicySnapshotV1Schema,
+  SignalTypeSchema,
+  SignalSourceSchema,
+  SignalDefinitionSchema,
+  EnforcementSemanticsSchema,
+  SpecStatusSchema,
+  DecisionSpecSchema,
 } from './schemas.js';
 
 export type {
@@ -26,4 +32,10 @@ export type {
   PolicyCondition,
   Policy,
   PolicySnapshotV1,
+  SignalType,
+  SignalSource,
+  SignalDefinition,
+  EnforcementSemantics,
+  SpecStatus,
+  DecisionSpec,
 } from './schemas.js';

@@ -1,12 +1,15 @@
 /**
- * Startup Validation - RFC-002 Policy Scope Integrity
+ * Startup Validation - RFC-002 Spec & Scope Binding Integrity
  *
  * Validates that all policies:
- * - Reference exactly one scope
- * - Scope exists in the scopes table
- * - Scope belongs to one organization and domain
+ * - MUST have spec_id (RFC-002 Section 5)
+ * - MUST have scope_id (RFC-002 Section 5)
+ * - spec_id MUST reference an active DecisionSpec (RFC-002 Section 4)
+ * - scope_id MUST reference a defined Scope (RFC-002 Section 3)
+ * - spec.domain MUST equal scope.domain (RFC-002 Section 3)
+ * - spec.organization_id MUST equal scope.organization_id (RFC-002 Section 3)
  *
- * Failure prevents server startup.
+ * Failure prevents server startup (RFC-002 Section 6).
  */
 
 import { getPool } from '../db/connection.js';
@@ -54,6 +57,8 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
     policies: Array<{
       id: string;
       name: string;
+      spec_id?: string; // RFC-002: Must be present
+      scope_id?: string; // RFC-002: Must be present
       organization_id?: string;
       scope?: {
         organization_id?: string;
@@ -78,6 +83,26 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
   const policies = snapshotResult.rows[0].policies;
 
   for (const policy of policies) {
+    // RFC-002: Policy MUST have spec_id
+    if (!policy.spec_id) {
+      errors.push({
+        policy_id: policy.id,
+        policy_name: policy.name,
+        reason: 'RFC-002 violation: missing spec_id',
+      });
+      continue;
+    }
+
+    // RFC-002: Policy MUST have scope_id
+    if (!policy.scope_id) {
+      errors.push({
+        policy_id: policy.id,
+        policy_name: policy.name,
+        reason: 'RFC-002 violation: missing scope_id',
+      });
+      continue;
+    }
+
     if (!policy.organization_id) {
       errors.push({
         policy_id: policy.id,
@@ -105,58 +130,77 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
       continue;
     }
 
-    const orgResult = await pool.query<{ organization_id: string }>(
-      `SELECT organization_id FROM mandate.organizations WHERE organization_id = $1`,
-      [policy.organization_id]
+    // RFC-002: Verify spec_id references an active DecisionSpec
+    const specResult = await pool.query<{
+      spec_id: string;
+      organization_id: string;
+      domain: string;
+      status: string;
+    }>(
+      `SELECT spec_id, organization_id, domain, status 
+       FROM mandate.mandate_specs 
+       WHERE spec_id = $1 AND status = 'active'`,
+      [policy.spec_id]
     );
 
-    if (orgResult.rows.length === 0) {
+    if (specResult.rows.length === 0) {
       errors.push({
         policy_id: policy.id,
         policy_name: policy.name,
-        reason: `organization_id "${policy.organization_id}" does not exist`,
+        reason: `spec_id "${policy.spec_id}" does not reference an active DecisionSpec`,
       });
       continue;
     }
 
-    const domainResult = await pool.query<{ domain_id: string }>(
-      `SELECT domain_id FROM mandate.domains 
-       WHERE organization_id = $1 AND name = $2`,
-      [policy.organization_id, policy.scope.domain]
+    const spec = specResult.rows[0];
+
+    // RFC-002: Verify scope_id references a defined Scope
+    const scopeCheckResult = await pool.query<{
+      scope_id: string;
+      organization_id: string;
+      domain_id: string;
+    }>(
+      `SELECT scope_id, organization_id, domain_id FROM mandate.scopes WHERE scope_id = $1`,
+      [policy.scope_id]
     );
 
-    if (domainResult.rows.length === 0) {
+    if (scopeCheckResult.rows.length === 0) {
       errors.push({
         policy_id: policy.id,
         policy_name: policy.name,
-        reason: `domain "${policy.scope.domain}" does not exist in organization "${policy.organization_id}"`,
+        reason: `scope_id "${policy.scope_id}" does not reference a defined Scope`,
       });
       continue;
     }
 
-    const scopeResult = await pool.query<{ scope_id: string }>(
-      `SELECT scope_id FROM mandate.scopes 
-       WHERE organization_id = $1 
-         AND domain_id = $2
-         AND COALESCE(service, '') = COALESCE($3, '')
-         AND COALESCE(agent, '') = COALESCE($4, '')
-         AND COALESCE(scope_system, '') = COALESCE($5, '')
-         AND COALESCE(environment, '') = COALESCE($6, '')`,
-      [
-        policy.organization_id,
-        domainResult.rows[0].domain_id,
-        policy.scope.service ?? null,
-        policy.scope.agent ?? null,
-        policy.scope.system ?? null,
-        policy.scope.environment ?? null,
-      ]
-    );
+    const scope = scopeCheckResult.rows[0];
 
-    if (scopeResult.rows.length === 0) {
+    // RFC-002: spec.domain MUST equal scope.domain
+    if (spec.domain !== policy.scope.domain) {
       errors.push({
         policy_id: policy.id,
         policy_name: policy.name,
-        reason: `scope does not exist: org="${policy.organization_id}", domain="${policy.scope.domain}"`,
+        reason: `RFC-002 violation: spec domain "${spec.domain}" does not match scope domain "${policy.scope.domain}"`,
+      });
+      continue;
+    }
+
+    // RFC-002: spec.organization_id MUST equal scope.organization_id
+    if (spec.organization_id !== scope.organization_id) {
+      errors.push({
+        policy_id: policy.id,
+        policy_name: policy.name,
+        reason: `RFC-002 violation: spec org "${spec.organization_id}" does not match scope org "${scope.organization_id}"`,
+      });
+      continue;
+    }
+
+    // RFC-002: policy's policy.organization_id MUST match spec
+    if (policy.organization_id !== spec.organization_id) {
+      errors.push({
+        policy_id: policy.id,
+        policy_name: policy.name,
+        reason: `RFC-002 violation: policy org "${policy.organization_id}" does not match spec org "${spec.organization_id}"`,
       });
     }
   }

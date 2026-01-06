@@ -23,7 +23,7 @@ const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const DOMAIN = 'config-management';
 
 const client = new MandateClient({
-  baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
+  baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3001',
   apiKey: process.env.MANDATE_API_KEY,
 });
 
@@ -61,6 +61,7 @@ async function reportExecutedAction(
       scope: {
         domain: DOMAIN,
         service: 'audit-logger',
+        agent: 'observe-agent',
         environment: 'production',
       },
     });
@@ -123,34 +124,34 @@ async function observeAgent(): Promise<void> {
     loginSuccess
   );
 
-  console.log('\n--- Simulating data export ---');
-  const exportSuccess = await simulateDataExport('csv', 5000);
-  await reportExecutedAction(
-    'data.export',
-    'customer-records',
-    {
-      format: 'csv',
-      record_count: 5000,
-      includes_pii: true,
-    },
-    exportSuccess
-  );
+  // console.log('\n--- Simulating data export ---');
+  // const exportSuccess = await simulateDataExport('csv', 5000);
+  // await reportExecutedAction(
+  //   'data.export',
+  //   'customer-records',
+  //   {
+  //     format: 'csv',
+  //     record_count: 5000,
+  //     includes_pii: true,
+  //   },
+  //   exportSuccess
+  // );
 
-  console.log('\n--- Simulating config change ---');
-  const configSuccess = await simulateConfigChange('max_connections', '100');
-  await reportExecutedAction(
-    'config.update',
-    'database-pool',
-    {
-      key: 'max_connections',
-      old_value: '50',
-      new_value: '100',
-    },
-    configSuccess
-  );
+  // console.log('\n--- Simulating config change ---');
+  // const configSuccess = await simulateConfigChange('max_connections', '100');
+  // await reportExecutedAction(
+  //   'config.update',
+  //   'database-pool',
+  //   {
+  //     key: 'max_connections',
+  //     old_value: '50',
+  //     new_value: '100',
+  //   },
+  //   configSuccess
+  // );
 
-  console.log('\n=== Observation complete ===');
-  console.log('All actions have been logged to Mandate for audit trail.');
+  // console.log('\n=== Observation complete ===');
+  // console.log('All actions have been logged to Mandate for audit trail.');
 }
 
 observeAgent().catch(console.error);

@@ -1,7 +1,7 @@
-# RFC-001: Mandate AI Control Plane v1
+# RFC-001: Mandate Control Plane & Decision Spec (v1.1)
 
 **Status:** Draft  
-**Version:** v1.0  
+**Version:** v1.1  
 **Last Updated:** 2026-01-06  
 
 ---
@@ -10,271 +10,279 @@
 
 Mandate is an **AI Control Plane** designed to govern, observe, and audit decisions made by AI agents and automated systems.
 
-Mandate does **not** execute actions, orchestrate workflows, or enforce outcomes.  
-It provides a centralized, deterministic, and immutable layer for:
+This RFC defines **two foundational layers** that together form the control plane:
 
-- Declaring decision intent
-- Evaluating governance constraints
-- Emitting authoritative verdicts
-- Producing a defensible audit trail
+1. **Decision Specs** – immutable decision contracts
+2. **Control Plane Semantics** – deterministic evaluation, verdicts, and audit
 
-This RFC defines the **non-negotiable boundaries** of the system.
+Mandate does **not** execute actions, orchestrate workflows, or enforce outcomes.
 
 ---
 
-## 2. Problem Statement
+## 2. Core Principle
 
-AI agents increasingly participate in irreversible actions such as:
+> **All governance decisions must be explainable using only the decision spec, supplied signals, and matched policies.**
 
-- Invoice approvals
-- Payment releases
-- Data exports
-- ERP updates
-
-Existing systems lack:
-- Centralized governance
-- Durable decision reasoning
-- Independent auditability
-- Clear separation between decision and execution
-
-Enterprises require a **control plane**, not more automation.
+Anything else is invalid.
 
 ---
 
-## 3. Goals
+## 3. What Is a Decision Spec
 
-Mandate aims to:
+A **Decision Spec** defines the **contract** for a governed decision.
 
-1. Capture decision intent before action
-2. Evaluate explicit governance constraints
-3. Emit authoritative verdicts
-4. Maintain an immutable audit trail
-5. Operate observe-only by default
-6. Remain execution-agnostic
-7. Be explainable to auditors and humans
+It declares:
+- what intent is being evaluated
+- what signals are allowed as inputs
+- what verdicts are legal outputs
+- what enforcement semantics apply
 
----
-
-## 4. Non-Goals (Hard DON’Ts)
-
-Mandate does NOT:
-
-- Execute business actions
-- Orchestrate workflows
-- Retry or compensate failures
-- Mutate domain state
-- Infer intent automatically
-- Replace RPA or workflow engines
-- Act as a general-purpose rule engine
-- Learn or modify policies automatically
-
-Any violation invalidates the control plane model.
+A spec:
+- contains **no decision logic**
+- is **immutable once active**
+- is **referenced forever** by decisions
 
 ---
 
-## 5. Core Concepts
+## 4. Spec Storage Model (DB-First)
 
-### 5.1 DecisionEvent
+Specs are stored directly in the database as structured records.
+
+There is no authoring or YAML workflow in v1.
+
+### 4.1 Spec Identity
+
+A spec is uniquely identified by:
+
+```
+(spec_id, version)
+```
+
+### 4.2 Immutability Rules
+
+Once a spec version is marked `active`:
+- it MUST NOT be modified
+- it MUST NOT be deleted
+
+Specs may only be:
+- deprecated
+- superseded by a new version
+
+---
+
+## 5. Spec Table (Canonical)
+
+```sql
+CREATE TABLE mandate_specs (
+  spec_id           TEXT NOT NULL,
+  version           TEXT NOT NULL,
+  organization_id   UUID NOT NULL,
+
+  domain             TEXT NOT NULL,
+  intent             TEXT NOT NULL,
+  stage              TEXT NOT NULL,
+
+  allowed_verdicts   TEXT[] NOT NULL,
+
+  signals            JSONB NOT NULL,
+  enforcement        JSONB NOT NULL,
+
+  status             TEXT NOT NULL, -- draft | active | deprecated
+  replaced_by        TEXT NULL,
+
+  created_at         TIMESTAMP NOT NULL DEFAULT now(),
+
+  PRIMARY KEY (spec_id, version)
+);
+```
+
+---
+
+## 6. Signal Model (Explicit)
+
+### 6.1 Definition
+
+A **signal** is a declared, typed input that policies are allowed to reference.
+
+Policies may ONLY evaluate signals declared in the spec.
+
+### 6.2 Signal Schema (JSONB)
+
+```json
+[
+  {
+    "name": "environment",
+    "type": "enum",
+    "values": ["dev", "staging", "production"],
+    "required": true,
+    "source": "scope"
+  },
+  {
+    "name": "risk_level",
+    "type": "enum",
+    "values": ["low", "medium", "high", "critical"],
+    "required": true,
+    "source": "context"
+  },
+  {
+    "name": "reversible",
+    "type": "boolean",
+    "required": false,
+    "source": "context"
+  }
+]
+```
+
+---
+
+## 7. Enforcement Semantics
+
+Enforcement rules define what verdicts *mean* operationally.
+
+### Example
+
+```json
+{
+  "pause_requires": ["human_approval"],
+  "resolution_timeout_minutes": 60
+}
+```
+
+Rules:
+- PAUSE always implies escalation
+- Enforcement semantics are defined by the spec, not policies
+
+---
+
+## 8. Allowed Verdicts
+
+The spec explicitly defines which verdicts may be emitted.
+
+Example:
+
+```json
+["OBSERVE", "PAUSE", "BLOCK"]
+```
+
+Policies emitting any other verdict are invalid.
+
+---
+
+## 9. DecisionEvent
 
 A DecisionEvent declares intent to perform an action.
 
 Properties:
-- Immutable
-- Append-only
-- Contextual, not executable
+- immutable
+- append-only
+- non-executable
 
-It answers:
-> “What was about to happen (or just happened), and under what context?”
+Each DecisionEvent MUST resolve to a spec.
 
 ---
 
-### 5.2 VerdictEvent
+## 10. VerdictEvent
 
 A VerdictEvent is Mandate’s authoritative response.
 
 | Verdict | Meaning |
-|-------|--------|
+|------|--------|
 | ALLOW | Explicitly permitted |
-| PAUSE | Requires human intervention |
+| PAUSE | Requires human resolution |
 | BLOCK | Must not proceed |
-| OBSERVE | Logged for audit only |
-
-Verdicts express governance intent only.
+| OBSERVE | Logged only |
 
 ---
 
-### 5.3 Decision Lifecycle
+## 11. Spec Resolution at Runtime
 
-Decisions may progress through:
+When a decision is ingested:
 
-- proposed
-- pre_commit
-- executed
+1. Resolve active spec by:
+   - organization_id
+   - intent
+   - stage
+2. Validate required signals
+3. Lock spec_id and version
+4. Evaluate policies
+5. Emit verdict
 
-All stages share a `decision_id`.
-
----
-
-## 6. Control Plane Architecture
-
-Mandate operates as a **pure governance layer**.
-
-```
-Agent → DecisionEvent → Mandate → VerdictEvent → Agent
-```
-
-Execution always remains external.
+The spec reference is persisted with the decision.
 
 ---
 
-## 7. Observe-Only First Principle
+## 12. Decision Immutability Dependency
 
-Mandate defaults to observe-only mode to:
+Every decision MUST store:
 
-- Enable safe adoption
-- Build baselines
-- Avoid disruption
-- Validate governance rules
-
-Enforcement is always external.
-
----
-
-## 8. Scope Model
-
-Scopes define **where policies apply**.
-
-### 8.1 Scope Dimensions
-- domain
-- service
-- agent
-- system
-- environment
-- tenant
-
-### 8.2 Matching Rules
-- All selector fields must match
-- Missing fields act as wildcards
-- Empty selector applies globally
-
-Scope matching is deterministic and stateless.
-
----
-
-## 9. Policy Model
-
-Policies express governance constraints.
-
-### 9.1 Constraints
-
-Policies MUST:
-- Be single-event
-- Be deterministic
-- Be stateless
-- Be explainable
-
-Policies MUST NOT:
-- Access historical data
-- Perform joins
-- Call external services
-- Contain loops or functions
-
-Policies are assertions, not programs.
-
----
-
-## 10. Verdict Resolution
-
-When multiple policies match:
-
-```
-BLOCK > PAUSE > ALLOW > OBSERVE
+```json
+{
+  "spec_id": "...",
+  "spec_version": "..."
+}
 ```
 
-All matched policies are recorded.
+A decision without its spec is invalid.
 
 ---
 
-## 11. Policy Snapshots & Immutability
+## 13. Policy Relationship (Non-Overlapping)
 
-- Policies are grouped into immutable snapshots
-- Verdicts reference snapshot_id
-- Snapshots are never edited
-- Historical verdicts are never re-evaluated
+- Specs define **what can be decided**
+- Policies define **how decisions are made**
 
----
-
-## 12. Audit Timeline
-
-Mandate maintains an append-only audit timeline.
-
-Each entry records:
-- decision_id
-- intent and stage
-- actor and target
-- summary and details
-- severity
-- source (system | agent | human)
-- authority level
-
-The timeline is the primary compliance artifact.
+Policies:
+- cannot invent signals
+- cannot emit illegal verdicts
+- cannot change enforcement semantics
 
 ---
 
-## 13. SDK Responsibilities
+## 14. Audit & Replay Guarantee
 
-SDK MAY:
-- Declare DecisionEvents
-- Retrieve Verdicts
-- Report outcomes
+A historical decision can always be replayed using:
+- the referenced spec version
+- stored signal values
+- policy snapshot
 
-SDK MUST NOT:
-- Evaluate policies
-- Interpret verdict meaning
-- Enforce behavior
+Deleting a spec would invalidate audit history and is forbidden.
 
 ---
 
-## 14. Security & Trust Model (v1)
+## 15. Non-Goals
 
-- Trusted clients
-- Immutable writes
-- Idempotent ingestion
-
-Future versions may add auth and tenancy.
-
----
-
-## 15. Success Criteria
-
-Mandate v1 is complete when:
-
-- Decisions can be evaluated deterministically
-- Verdicts are explainable
-- Audit timelines reconstruct full history
-- System operates safely in observe-only mode
+This RFC explicitly excludes:
+- spec authoring workflows
+- YAML or Git pipelines
+- enforcement engines
+- workflow orchestration
 
 ---
 
-## 16. Explicitly Out of Scope
+## 16. Invariants
 
-- Enforcement engines
-- Workflow orchestration
-- Human task systems
-- ML-driven policy creation
+1. Specs are immutable once active  
+2. Specs are never deleted  
+3. Policies depend on specs  
+4. Decisions depend on specs  
+5. Enforcement semantics live in specs  
 
 ---
 
 ## 17. Summary
 
-Mandate is a **boring, authoritative AI control plane**.
+RFC-001 defines the **contractual foundation** of Mandate.
 
-Its value comes from:
-- Constraints
-- Determinism
-- Auditability
-- Trust
+Without it:
+- policies are unsafe
+- audits are meaningless
+- control collapses
+
+With it:
+- decisions are defensible
+- governance is deterministic
+- the system remains boring and correct
 
 ---
 
-**End of RFC-001**
+**End of RFC-001 v1.1**

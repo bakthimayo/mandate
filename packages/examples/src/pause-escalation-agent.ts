@@ -25,7 +25,7 @@ const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const DOMAIN = 'config-management';
 
 const client = new MandateClient({
-  baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
+  baseUrl: 'http://127.0.0.1:3001',
   apiKey: process.env.MANDATE_API_KEY,
 });
 
@@ -176,6 +176,7 @@ async function pauseEscalationAgent(): Promise<void> {
     scope: {
       domain: DOMAIN,
       service: 'db-admin-tool',
+      agent: 'pause-escalation-agent',
       environment: 'production',
     },
   });

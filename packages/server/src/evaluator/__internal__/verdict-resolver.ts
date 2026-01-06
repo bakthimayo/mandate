@@ -9,7 +9,7 @@
  */
 
 import type { Verdict } from '@mandate/shared';
-import type { EvaluationResult } from './__internal__/evaluator-types.js';
+import type { EvaluationResult } from './evaluator-types.js';
 
 /**
  * A single policy match result.
