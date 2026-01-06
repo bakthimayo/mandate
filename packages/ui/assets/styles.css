@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Audit console typography */
+@layer components {
+  .audit-text-mono {
+    @apply font-mono text-sm text-gray-700;
+  }
+
+  .audit-badge {
+    @apply inline-block px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .audit-panel {
+    @apply bg-white rounded-lg border border-gray-200 p-4 shadow-sm;
+  }
+
+  .audit-section {
+    @apply space-y-3;
+  }
+}
+
+/* Verdict colors - read-only visual indicators */
+.verdict-allow {
+  @apply bg-green-50 border-green-200 text-green-900;
+}
+
+.verdict-pause {
+  @apply bg-amber-50 border-amber-200 text-amber-900;
+}
+
+.verdict-block {
+  @apply bg-red-50 border-red-200 text-red-900;
+}
+
+.verdict-observe {
+  @apply bg-gray-50 border-gray-200 text-gray-900;
+}
+
+/* Timeline styling */
+.timeline-entry {
+  @apply relative pb-8;
+}
+
+.timeline-entry::before {
+  content: '';
+  @apply absolute left-5 top-8 bottom-0 w-0.5 bg-gray-200;
+}
+
+.timeline-entry:last-child::before {
+  @apply hidden;
+}
+
+.timeline-marker {
+  @apply absolute left-0 top-2 w-11 h-11 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center;
+}

@@ -15,10 +15,18 @@ import { evaluateDecision } from '../evaluator/index.js';
 import { createIsolationContext } from '../repositories/isolation-context.js';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '../db/connection.js';
+import { listDecisionEvents } from '../repositories/decision-event-repository.js';
 
 interface DecisionResponse {
   decision: DecisionEvent;
   verdict: VerdictEvent;
+}
+
+interface ListDecisionsQuery {
+  organization_id: string;
+  domain: string;
+  limit?: string;
+  offset?: string;
 }
 
 async function resolveDomainId(
@@ -34,6 +42,48 @@ async function resolveDomainId(
 }
 
 export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
+//   fastify.get(
+//     '/api/v1/decisions',
+//     async (
+//       request: FastifyRequest<{ Querystring: Partial<ListDecisionsQuery> }>,
+//       reply: FastifyReply
+//     ): Promise<{ decisions: readonly DecisionEvent[] }> => {
+//       const { organization_id, domain, limit, offset } = request.query;
+
+//       if (!organization_id) {
+//         return reply.status(400).send({
+//           error: 'organization_id query parameter is required',
+//         });
+//       }
+
+//       if (!domain) {
+//         return reply.status(400).send({
+//           error: 'domain query parameter is required',
+//         });
+//       }
+
+//       const domain_id = await resolveDomainId(organization_id, domain);
+
+//       if (!domain_id) {
+//         return reply.status(404).send({
+//           error: `Domain "${domain}" not found in organization`,
+//         });
+//       }
+
+//       const ctx = createIsolationContext(organization_id, domain_id);
+
+//       const limitNum = limit ? parseInt(limit, 10) : 100;
+//       const offsetNum = offset ? parseInt(offset, 10) : 0;
+
+//       const decisions = await listDecisionEvents(ctx, {
+//         limit: limitNum,
+//         offset: offsetNum,
+//       });
+
+//       return { decisions };
+//     }
+//   );
+
   fastify.post(
     '/api/v1/decisions',
     async (

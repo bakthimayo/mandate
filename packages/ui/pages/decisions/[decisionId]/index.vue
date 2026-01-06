@@ -1,0 +1,154 @@
+<template>
+  <div class="space-y-6">
+     <!-- Header -->
+    <div class="flex items-center gap-4 mb-6">
+      <NuxtLink
+        to="/"
+        class="text-blue-600 hover:underline text-sm font-medium"
+      >
+        ← Back to Decisions
+      </NuxtLink>
+      <span class="text-gray-400">|</span>
+      <NuxtLink
+        :to="{
+          path: `/decisions/${route.params.decisionId}/timeline`,
+          query: { 
+            organization_id: route.query.organization_id,
+            domain: route.query.domain
+          }
+        }"
+        class="text-blue-600 hover:underline text-sm font-medium"
+      >
+        Full Timeline
+      </NuxtLink>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="audit-panel text-center py-8">
+      <p class="text-gray-600">Loading decision details...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="audit-panel bg-red-50 border-red-200">
+      <p class="text-red-900 font-medium">{{ error.message }}</p>
+    </div>
+
+    <!-- Decision Timeline -->
+    <div v-else-if="timeline">
+     
+
+     <!-- Decision Summary -->
+      <div class="audit-panel">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">DECISION ID</p>
+            <p class="audit-text-mono">
+              {{ timeline.decision_id.slice(0, 12) }}...
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">INTENT</p>
+            <p class="text-sm text-gray-900">
+              {{ timeline.decision_event.intent }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">STAGE</p>
+            <p class="text-sm text-gray-900">
+              {{ timeline.decision_event.stage }}
+            </p>
+          </div>
+          <div v-if="timeline.verdict">
+            <p class="text-xs text-gray-600 font-medium mb-1">VERDICT</p>
+            <VerdictBadge :verdict="timeline.verdict.verdict" />
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Timeline -->
+        <div class="lg:col-span-2 space-y-2">
+          <h2 class="text-lg font-semibold text-gray-900">Timeline</h2>
+          <div v-for="entry in timeline.timeline" :key="entry.id">
+            <TimelineEntry :entry="entry" />
+          </div>
+        </div>
+
+        <!-- Verdict Explanation -->
+        <div v-if="timeline.verdict" class="lg:col-span-1">
+          <VerdictExplanation :verdict="timeline.verdict" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else class="audit-panel text-center py-8">
+     <p class="text-gray-600">Decision not found.</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { DecisionTimeline } from "~/types/mandate";
+
+definePageMeta({
+  layout: "default",
+});
+
+const route = useRoute();
+const { fetchDecisionTimeline } = useMandateApi();
+
+const timeline = ref<DecisionTimeline | null>(null);
+const loading = ref(false);
+const error = ref<{ message: string } | null>(null);
+const loadedDecisionId = ref<string>("");
+let isLoading = false;
+
+const decisionId = computed(() => route.params.decisionId as string);
+const organizationId = computed(
+  () => (route.query.organization_id as string) || ""
+);
+const domain = computed(() => (route.query.domain as string) || "");
+
+const loadTimeline = async () => {
+  if (!decisionId.value || isLoading || loadedDecisionId.value === decisionId.value) {
+    return;
+  }
+  
+  isLoading = true;
+  loading.value = true;
+  error.value = null;
+  timeline.value = null;
+
+  const result = await fetchDecisionTimeline(
+    decisionId.value,
+    organizationId.value || undefined,
+    domain.value || undefined
+  );
+
+  if (result.error) {
+    error.value = result.error;
+  } else {
+    timeline.value = result.data;
+  }
+
+  loadedDecisionId.value = decisionId.value;
+  await nextTick();
+  loading.value = false;
+  isLoading = false;
+};
+
+onMounted(() => {
+  loadTimeline();
+});
+
+watch(
+  decisionId,
+  (newId, oldId) => {
+    if (newId && newId !== oldId && newId !== loadedDecisionId.value) {
+      loadTimeline();
+    }
+  },
+  { immediate: false }
+);
+</script>

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "#app": [".nuxt/dist/app/index.mjs"],
+      "#imports": ["./.nuxt/imports.d.ts"]
+    }
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.vue",
+    "./.nuxt/dist/app/index.d.ts"
+  ]
+}

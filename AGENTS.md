@@ -33,6 +33,23 @@ Rules:
 
 ⚠️ If a requirement resembles SaaS tenancy, STOP and ask for clarification.
 
+## RFC-003: Observability & Audit UI (Read-Only)
+
+⚠️ **When generating code for Mandate's Observability & Audit UI, you MUST strictly follow:**
+
+Hard UI Constraints:
+- The UI is strictly read-only
+- The UI must not mutate state or trigger actions
+- The UI must not override, approve, reject, retry, or resume decisions
+- The UI must not recompute governance logic
+- The UI must only render persisted data from APIs
+- The UI must treat organization_id and domain as hard isolation boundaries
+
+**STOP and ask for clarification** if a feature resembles:
+- Control, enforcement, workflow, or remediation
+- State mutation or action triggering
+- Decision override or approval logic
+
 ## Key Concepts
 - **Decision Events:** Core input representing an action attempt
 - **Verdicts:** ALLOW | PAUSE | BLOCK | OBSERVE
