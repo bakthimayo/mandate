@@ -6,6 +6,11 @@
  * - Polling for resolution (human approval/rejection)
  * - Respecting the final verdict after escalation
  *
+ * RFC-002 Compliance:
+ * - organization_id is explicitly provided (required)
+ * - scope.domain is explicitly provided (required)
+ * - No inference or defaults - caller provides full attribution
+ *
  * Key principles:
  * - PAUSE means STOP and WAIT - never proceed without resolution
  * - Poll for verdict changes (or use webhooks in production)
@@ -15,6 +20,9 @@
 
 import { MandateClient } from '@mandate/sdk';
 import type { Verdict, VerdictEvent } from '@mandate/shared';
+
+const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
+const DOMAIN = 'config-management';
 
 const client = new MandateClient({
   baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
@@ -117,7 +125,7 @@ async function handleVerdict(
       break;
 
     case 'OBSERVE':
-      console.log(`[VERDICT: OBSERVE] Proceeding (action is being observed)`);
+      console.log(`[VERDICT: OBSERVE] Proceeding with high-risk action (observed)`);
       try {
         await performHighRiskAction(action);
         await client.reportOutcome({
@@ -149,10 +157,13 @@ async function pauseEscalationAgent(): Promise<void> {
   };
 
   console.log('=== Pause Escalation Agent ===');
+  console.log(`Organization: ${ORGANIZATION_ID}`);
+  console.log(`Domain: ${DOMAIN}`);
   console.log(`Requesting decision for: ${action.type} on ${action.target}`);
   console.log('This is a high-risk action that may require human approval.\n');
 
   const response = await client.requestDecision({
+    organization_id: ORGANIZATION_ID,
     intent: action.type,
     stage: 'pre_commit',
     actor: 'pause-escalation-agent',
@@ -163,8 +174,8 @@ async function pauseEscalationAgent(): Promise<void> {
       reversible: false,
     },
     scope: {
-      org_id: 'example-org',
-      project_id: 'database-admin',
+      domain: DOMAIN,
+      service: 'db-admin-tool',
       environment: 'production',
     },
   });

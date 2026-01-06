@@ -5,6 +5,11 @@
  * Actions are performed, and Mandate is notified at the 'executed' stage
  * for audit trail purposes.
  *
+ * RFC-002 Compliance:
+ * - organization_id is explicitly provided (required)
+ * - scope.domain is explicitly provided (required)
+ * - No inference or defaults - caller provides full attribution
+ *
  * Key principles:
  * - Report actions AFTER they occur (executed stage)
  * - Still respect verdicts - even OBSERVE verdicts may inform behavior
@@ -13,6 +18,9 @@
  */
 
 import { MandateClient } from '@mandate/sdk';
+
+const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
+const DOMAIN = 'config-management';
 
 const client = new MandateClient({
   baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
@@ -41,6 +49,7 @@ async function reportExecutedAction(
 ): Promise<void> {
   try {
     const response = await client.requestDecision({
+      organization_id: ORGANIZATION_ID,
       intent,
       stage: 'executed',
       actor: 'observe-agent',
@@ -50,8 +59,8 @@ async function reportExecutedAction(
         execution_success: success,
       },
       scope: {
-        org_id: 'example-org',
-        project_id: 'logging-service',
+        domain: DOMAIN,
+        service: 'audit-logger',
         environment: 'production',
       },
     });
@@ -97,6 +106,8 @@ async function simulateConfigChange(key: string, value: string): Promise<boolean
 
 async function observeAgent(): Promise<void> {
   console.log('=== Observe-Only Agent ===');
+  console.log(`Organization: ${ORGANIZATION_ID}`);
+  console.log(`Domain: ${DOMAIN}`);
   console.log('This agent reports executed actions for audit purposes.\n');
 
   console.log('--- Simulating user login ---');

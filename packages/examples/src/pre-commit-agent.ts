@@ -5,6 +5,11 @@
  * BEFORE performing any action. The agent MUST respect the verdict and
  * NOT bypass it under any circumstances.
  *
+ * RFC-002 Compliance:
+ * - organization_id is explicitly provided (required)
+ * - scope.domain is explicitly provided (required)
+ * - No inference or defaults - caller provides full attribution
+ *
  * Key principles:
  * - Request decision BEFORE acting
  * - Respect ALL verdicts (ALLOW, BLOCK, PAUSE, OBSERVE)
@@ -14,6 +19,9 @@
 
 import { MandateClient } from '@mandate/sdk';
 import type { Verdict } from '@mandate/shared';
+
+const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
+const DOMAIN = 'config-management';
 
 const client = new MandateClient({
   baseUrl: process.env.MANDATE_URL ?? 'http://localhost:3000',
@@ -104,9 +112,12 @@ async function preCommitAgent(): Promise<void> {
   };
 
   console.log('=== Pre-Commit Agent ===');
-  console.log(`Requesting decision for: file.write to ${action.path}`);
+  console.log(`Organization: ${ORGANIZATION_ID}`);
+  console.log(`Domain: ${DOMAIN}`);
+  console.log(`Requesting decision for: file.write to ${action.path}\n`);
 
   const response = await client.requestDecision({
+    organization_id: ORGANIZATION_ID,
     intent: 'file.write',
     stage: 'pre_commit',
     actor: 'pre-commit-agent',
@@ -114,18 +125,17 @@ async function preCommitAgent(): Promise<void> {
     context: {
       content_length: action.content.length,
       content_type: 'yaml',
-      environment: 'production',
     },
     scope: {
-      org_id: 'example-org',
-      project_id: 'config-management',
+      domain: DOMAIN,
+      service: 'config-writer',
       environment: 'production',
     },
   });
 
   console.log(`Decision ID: ${response.decision.decision_id}`);
   console.log(`Verdict: ${response.verdict.verdict}`);
-  console.log(`Matched policies: ${response.verdict.matched_policy_ids.join(', ') || 'none'}`);
+  console.log(`Matched policies: ${response.verdict.matched_policy_ids.join(', ') || 'none'}\n`);
 
   await handleVerdict(response.verdict.verdict, response.decision.decision_id, action);
 }

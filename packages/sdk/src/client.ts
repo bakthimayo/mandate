@@ -1,8 +1,17 @@
+/**
+ * Mandate SDK Client - RFC-002 Compliant
+ *
+ * The SDK is a thin client that:
+ * - Accepts organization_id and domain from the caller (required)
+ * - Forwards them to the server without modification
+ * - Does NOT infer, default, or enforce policy logic
+ */
+
 import type {
   DecisionEvent,
   VerdictEvent,
   TimelineEntry,
-  Verdict,
+  Scope,
 } from '@mandate/shared';
 
 export interface MandateClientConfig {
@@ -10,15 +19,22 @@ export interface MandateClientConfig {
   apiKey?: string;
 }
 
+/**
+ * Input for requesting a decision.
+ * RFC-002: organization_id and scope.domain are required.
+ */
 export interface RequestDecisionInput {
+  organization_id: string;
   intent: string;
   stage: 'proposed' | 'pre_commit' | 'executed';
   actor: string;
   target: string;
   context?: Record<string, unknown>;
-  scope?: {
-    org_id: string;
-    project_id?: string;
+  scope: {
+    domain: string;
+    service?: string;
+    agent?: string;
+    system?: string;
     environment?: string;
   };
 }
@@ -51,17 +67,30 @@ export class MandateClient {
   async requestDecision(
     input: RequestDecisionInput
   ): Promise<RequestDecisionResponse> {
+    const { randomUUID } = await import('node:crypto');
+    const body: Record<string, unknown> = {
+      decision_id: randomUUID(),
+      organization_id: input.organization_id,
+      intent: input.intent,
+      stage: input.stage,
+      actor: input.actor,
+      target: input.target,
+      context: input.context ?? {},
+      scope: {
+        organization_id: input.organization_id,
+        domain: input.scope.domain,
+        service: input.scope.service,
+        agent: input.scope.agent,
+        system: input.scope.system,
+        environment: input.scope.environment,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
     const response = await fetch(`${this.baseUrl}/api/v1/decisions`, {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify({
-        intent: input.intent,
-        stage: input.stage,
-        actor: input.actor,
-        target: input.target,
-        context: input.context ?? {},
-        scope: input.scope ?? { org_id: 'default' },
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

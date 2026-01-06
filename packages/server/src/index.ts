@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { initPool, closePool } from './db/connection.js';
+import { validatePolicyScopeIntegrity } from './validation/startup-validator.js';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -13,6 +14,8 @@ async function main() {
     user: process.env.DB_USER ?? 'mandate',
     password: process.env.DB_PASSWORD ?? 'mandate',
   });
+
+  await validatePolicyScopeIntegrity();
 
   const app = buildApp();
 
