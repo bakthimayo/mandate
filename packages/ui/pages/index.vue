@@ -65,6 +65,7 @@ const error = ref<{ message: string; details?: string } | null>(null)
 const hasAppliedFilters = ref(false)
 
 const { fetchDecisions } = useMandateApi()
+const { loadFilters, saveFilters } = useFilterStore()
 
 const applyFilters = async (filters: any) => {
    if (!filters.organizationId || !filters.domain) {
@@ -87,6 +88,9 @@ const applyFilters = async (filters: any) => {
    if (filters.intent) params.intent = filters.intent
    if (filters.agent) params.agent = filters.agent
 
+   // Save filters to cache before fetching
+   saveFilters(filters)
+
    const result = await fetchDecisions(params)
    loading.value = result.loading
    error.value = result.error
@@ -99,4 +103,12 @@ const navigateToDecision = (decision: DecisionListItem) => {
     query: { organization_id: decision.organization_id, domain: decision.domain }
   })
 }
+
+// Restore filters on mount
+onMounted(() => {
+  const cachedFilters = loadFilters()
+  if (cachedFilters) {
+    applyFilters(cachedFilters)
+  }
+})
 </script>

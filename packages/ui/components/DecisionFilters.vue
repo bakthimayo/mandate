@@ -142,6 +142,7 @@ const config = useRuntimeConfig()
 const organizationId = config.public.organizationId as string
 
 const { fetchDomains } = useMandateApi()
+const { loadFilters } = useFilterStore()
 
 const domains = ref<DomainItem[]>([])
 const loadingDomains = ref(true)
@@ -183,6 +184,17 @@ onMounted(async () => {
     domainsError.value = result.error.message
   } else {
     domains.value = result.data || []
+  }
+
+  // Restore cached filters after domains are loaded
+  const cachedFilters = loadFilters()
+  if (cachedFilters) {
+    filters.domain = cachedFilters.domain || ''
+    filters.startTime = cachedFilters.startTime || ''
+    filters.endTime = cachedFilters.endTime || ''
+    filters.verdict = cachedFilters.verdict || ''
+    filters.intent = cachedFilters.intent || ''
+    filters.agent = cachedFilters.agent || ''
   }
 
   loadingDomains.value = false
