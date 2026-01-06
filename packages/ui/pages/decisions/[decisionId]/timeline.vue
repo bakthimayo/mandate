@@ -188,82 +188,9 @@
         </div>
       </div>
      
-      <!-- Verdict (if available) -->
+      <!-- Verdict Explanation Panel -->
       <div v-if="timeline.verdict" class="mt-8">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Final Verdict</h2>
-        <div class="audit-panel space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-sm text-gray-600 font-medium">VERDICT</p>
-              <div class="mt-2">
-                <VerdictBadge :verdict="timeline.verdict.verdict" />
-              </div>
-            </div>
-            <div class="text-right">
-              <p class="text-sm text-gray-600 font-medium">ISSUED AT</p>
-              <p class="text-sm text-gray-900 mt-1">
-                {{ formatTimestamp(timeline.verdict.timestamp) }}
-              </p>
-            </div>
-          </div>
-
-          <div class="border-t pt-4 space-y-3">
-            <div>
-              <p class="text-xs text-gray-600 font-medium mb-1">EXPLANATION</p>
-              <p class="text-sm text-gray-900">
-                {{ timeline.verdict.explanation }}
-              </p>
-            </div>
-
-            <div v-if="timeline.verdict.matched_scopes?.length > 0">
-              <p class="text-xs text-gray-600 font-medium mb-2">
-                MATCHED SCOPES
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-for="scope in timeline.verdict.matched_scopes"
-                  :key="scope"
-                  class="inline-block px-2 py-1 bg-blue-50 text-blue-900 text-xs rounded"
-                >
-                  {{ scope }}
-                </span>
-              </div>
-            </div>
-
-            <div v-if="timeline.verdict.matched_policies?.length > 0">
-              <p class="text-xs text-gray-600 font-medium mb-2">
-                MATCHED POLICIES
-              </p>
-              <div class="space-y-1">
-                <div
-                  v-for="policy in timeline.verdict.matched_policies"
-                  :key="policy"
-                  class="text-xs text-gray-700 font-mono"
-                >
-                  {{ policy }}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <p class="text-xs text-gray-600 font-medium mb-1">
-                POLICY SNAPSHOT ID
-              </p>
-              <p class="text-xs text-gray-900 font-mono">
-                {{ timeline.verdict.policy_snapshot_id }}
-              </p>
-            </div>
-
-            <div>
-              <p class="text-xs text-gray-600 font-medium mb-1">
-                PRECEDENCE ORDER
-              </p>
-              <p class="text-sm text-gray-900">
-                {{ timeline.verdict.precedence_order }}
-              </p>
-            </div>
-          </div>
-        </div>
+        <VerdictExplanation :verdict="timeline.verdict" />
       </div>
 
       <!-- Legend -->
