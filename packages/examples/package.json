@@ -7,7 +7,9 @@
     "build": "tsc",
     "pre-commit-agent": "node dist/pre-commit-agent.js",
     "observe-agent": "node dist/observe-agent.js",
-    "pause-escalation-agent": "node dist/pause-escalation-agent.js"
+    "pause-escalation-agent": "node dist/pause-escalation-agent.js",
+    "airline-demo": "node dist/airline-demo/airline-chatbot-demo.js",
+    "airline-demo-interactive": "node dist/airline-demo/interactive-chatbot-agent.js"
   },
   "dependencies": {
     "@mandate/sdk": "workspace:*",

@@ -1,0 +1,291 @@
+{
+  "decisionSpec": {
+    "spec_id": "spec-refund-v1",
+    "version": "1.0.0",
+    "organization_id": "acme-airlines",
+    "domain_name": "customer-support",
+    "intent": "issue_refund",
+    "stage": "pre_commit",
+    "allowed_verdicts": ["ALLOW", "PAUSE", "BLOCK"],
+    "signals": [
+      {
+        "name": "has_monetary_value",
+        "type": "boolean",
+        "required": true,
+        "source": "context",
+        "description": "Indicates if the response mentions a specific dollar amount (e.g., $500)"
+      },
+      {
+        "name": "policy_keyword",
+        "type": "enum",
+        "values": ["refund", "charge", "fee", "escalate"],
+        "required": true,
+        "source": "context",
+        "description": "Detected policy-related keyword from the response text"
+      },
+      {
+        "name": "monetary_amount",
+        "type": "number",
+        "required": false,
+        "source": "context",
+        "description": "Extracted dollar amount (e.g., 500 from '$500')"
+      },
+      {
+        "name": "requires_escalation",
+        "type": "boolean",
+        "required": false,
+        "source": "context",
+        "description": "Whether the response explicitly avoids escalation language"
+      }
+    ],
+    "enforcement": {
+      "pause_requires": ["compliance-team"],
+      "resolution_timeout_minutes": 60
+    },
+    "status": "active",
+    "created_at": "2026-01-01T00:00:00Z",
+    "description": "Governs refund offers made by customer-support chatbot before customer delivery"
+  },
+  "policy": {
+    "id": "pol-refund-001",
+    "spec_id": "spec-refund-v1",
+    "scope_id": "customer-support.chatbot-v3.production",
+    "organization_id": "acme-airlines",
+    "domain_name": "customer-support",
+    "name": "High-Risk Refund Claims Require Escalation",
+    "description": "When a refund is claimed with a specific monetary amount of $100 or more, the response must be escalated to the compliance team before delivery to the customer. This prevents unverified refund commitments.",
+    "scope": {
+      "organization_id": "acme-airlines",
+      "domain_name": "customer-support",
+      "agent": "chatbot-v3",
+      "service": "chat-api",
+      "environment": "production"
+    },
+    "conditions": [
+      {
+        "field": "has_monetary_value",
+        "operator": "==",
+        "value": true
+      },
+      {
+        "field": "policy_keyword",
+        "operator": "==",
+        "value": "refund"
+      },
+      {
+        "field": "monetary_amount",
+        "operator": ">=",
+        "value": 100
+      }
+    ],
+    "verdict": "PAUSE",
+    "rationale": "Specific refund amounts above $100 are considered high-risk and require human verification before customer communication. This ensures compliance with company refund policies and prevents chatbot from making commitments outside its authority."
+  },
+  "exampleDecisionRequest": {
+    "decision": {
+      "decision_id": "dec-airline-001",
+      "organization_id": "acme-airlines",
+      "domain_name": "customer-support",
+      "intent": "issue_refund",
+      "stage": "pre_commit",
+      "actor": "chatbot-v3",
+      "target": "customer:C123456",
+      "scope": {
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "agent": "chatbot-v3",
+        "service": "chat-api",
+        "environment": "production"
+      },
+      "context": {
+        "customer_id": "C123456",
+        "booking_id": "BK789",
+        "cancellation_reason": "customer_request"
+      },
+      "timestamp": "2026-01-12T14:30:00Z"
+    },
+    "unstructured_context": "Yes, you can receive a full refund of $500 for your cancelled flight. This will be processed immediately to your original payment method without any deduction or fee."
+  },
+  "observePhaseResults": {
+    "signals_before": {
+      "has_monetary_value": "undefined",
+      "policy_keyword": "undefined",
+      "monetary_amount": "undefined",
+      "requires_escalation": "undefined"
+    },
+    "extraction_process": {
+      "step_1_currency_detection": {
+        "pattern": "/\\$\\s*(\\d+(?:\\.\\d+)?)/",
+        "text_match": "$500",
+        "extracted": "$500",
+        "signals_populated": {
+          "has_monetary_value": true,
+          "monetary_amount": 500
+        }
+      },
+      "step_2_keyword_detection": {
+        "patterns": ["refund", "charge", "fee", "escalate"],
+        "text_match": "refund",
+        "extracted": "refund",
+        "signals_populated": {
+          "policy_keyword": "refund"
+        }
+      },
+      "step_3_escalation_language": {
+        "words": ["immediately", "automatic", "without exception"],
+        "text_match": "immediately",
+        "interpretation": "Claims immediate processing without escalation",
+        "signals_populated": {
+          "requires_escalation": false
+        }
+      }
+    },
+    "signals_after": {
+      "has_monetary_value": true,
+      "policy_keyword": "refund",
+      "monetary_amount": 500,
+      "requires_escalation": false
+    },
+    "extraction_method": "deterministic",
+    "extraction_notes": "All signals extracted via pattern matching. No LLM involved. Deterministic and fully auditable."
+  },
+  "signalValidationResults": {
+    "required_signals": [
+      {
+        "signal": "has_monetary_value",
+        "required": true,
+        "populated": true,
+        "value": true,
+        "status": "PASS"
+      },
+      {
+        "signal": "policy_keyword",
+        "required": true,
+        "populated": true,
+        "value": "refund",
+        "status": "PASS"
+      }
+    ],
+    "optional_signals": [
+      {
+        "signal": "monetary_amount",
+        "required": false,
+        "populated": true,
+        "value": 500,
+        "status": "PASS"
+      },
+      {
+        "signal": "requires_escalation",
+        "required": false,
+        "populated": true,
+        "value": false,
+        "status": "PASS"
+      }
+    ],
+    "validation_result": "PASS",
+    "validation_notes": "All required signals present and populated. No missing required signals."
+  },
+  "policyEvaluationResults": {
+    "scope_matching": {
+      "policy_scope": {
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "agent": "chatbot-v3"
+      },
+      "decision_scope": {
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "agent": "chatbot-v3",
+        "service": "chat-api",
+        "environment": "production"
+      },
+      "match": true,
+      "notes": "All required scope fields match. Optional fields in policy are satisfied by decision scope."
+    },
+    "condition_evaluation": [
+      {
+        "condition": {
+          "field": "has_monetary_value",
+          "operator": "==",
+          "value": true
+        },
+        "decision_value": true,
+        "result": true,
+        "notes": "Signal has_monetary_value is true, matches condition requirement"
+      },
+      {
+        "condition": {
+          "field": "policy_keyword",
+          "operator": "==",
+          "value": "refund"
+        },
+        "decision_value": "refund",
+        "result": true,
+        "notes": "Signal policy_keyword is 'refund', matches condition requirement"
+      },
+      {
+        "condition": {
+          "field": "monetary_amount",
+          "operator": ">=",
+          "value": 100
+        },
+        "decision_value": 500,
+        "result": true,
+        "notes": "Signal monetary_amount is 500, which is >= 100"
+      }
+    ],
+    "all_conditions_matched": true,
+    "policy_matched": true,
+    "verdict": "PAUSE"
+  },
+  "exampleVerdictResponse": {
+    "decision": {
+      "decision_id": "dec-airline-001",
+      "organization_id": "acme-airlines",
+      "domain_name": "customer-support",
+      "intent": "issue_refund",
+      "stage": "pre_commit",
+      "actor": "chatbot-v3",
+      "target": "customer:C123456",
+      "scope": {
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "agent": "chatbot-v3",
+        "service": "chat-api",
+        "environment": "production"
+      },
+      "context": {
+        "customer_id": "C123456",
+        "booking_id": "BK789",
+        "cancellation_reason": "customer_request",
+        "has_monetary_value": true,
+        "policy_keyword": "refund",
+        "monetary_amount": 500,
+        "requires_escalation": false
+      },
+      "timestamp": "2026-01-12T14:30:00Z",
+      "spec_id": "spec-refund-v1",
+      "spec_version": "1.0.0"
+    },
+    "verdict": {
+      "verdict_id": "verd-airline-001",
+      "organization_id": "acme-airlines",
+      "decision_id": "dec-airline-001",
+      "snapshot_id": "snap-20260112-v1",
+      "verdict": "PAUSE",
+      "matched_policy_ids": ["pol-refund-001"],
+      "timestamp": "2026-01-12T14:30:05Z",
+      "spec_id": "spec-refund-v1",
+      "spec_version": "1.0.0",
+      "scope_id": "customer-support.chatbot-v3.production",
+      "domain_name": "customer-support",
+      "owning_team": "compliance-team"
+    }
+  },
+  "safeResponseFallback": {
+    "original_draft_response": "Yes, you can receive a full refund of $500 for your cancelled flight. This will be processed immediately to your original payment method without any deduction or fee.",
+    "verdict": "PAUSE",
+    "reason": "High-risk refund claim with specific amount requires escalation",
+    "safe_response_sent_to_customer": "Thank you for your question about refunds. Your request requires review by our compliance team to ensure we provide you with the correct information about your specific refund eligibility.\n\nA specialist will reach out to you within 1 business day with a confirmed answer. Your booking reference is BK789.\n\nWe appreciate your patience!"
+  }
+}

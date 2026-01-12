@@ -22,6 +22,7 @@ import { evaluateDecision } from '../evaluator/index.js';
 import { SpecRepository } from '../repositories/spec-repository.js';
 import { SignalValidator } from '../validation/signal-validator.js';
 import { createIsolationContext } from '../repositories/isolation-context.js';
+import { executeObservePhase } from '../observe/index.js';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '../db/connection.js';
 import { listDecisionEvents } from '../repositories/decision-event-repository.js';
@@ -36,6 +37,17 @@ interface ListDecisionsQuery {
   domain: string;
   limit?: string;
   offset?: string;
+}
+
+/**
+ * Request body for decision with optional unstructured context.
+ * The `unstructured_context` field is used during the Observe phase
+ * to populate already-declared signal values.
+ * @see RFC-002 Section 7
+ */
+interface DecisionRequest {
+  decision: Omit<DecisionEvent, 'spec_id' | 'spec_version'>;
+  unstructured_context?: string; // Optional: AI response or other unstructured input
 }
 
 async function resolveDomainName(
@@ -97,12 +109,21 @@ async function resolveOrCreateScopeId(
     `INSERT INTO mandate.scopes (
        scope_id, organization_id, domain_name, service, agent, scope_system, environment, tenant
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (scope_id) DO NOTHING
      RETURNING scope_id`,
     [scopeId, organization_id, domain_name, service, agent, scopeSystem, environment, tenant]
   );
 
+  // If insert returned no rows (due to conflict), re-query to get the existing scope_id
   if (insertResult.rows.length === 0) {
-    throw new Error('Failed to create scope');
+    const recheck = await pool.query<{ scope_id: string }>(
+      `SELECT scope_id FROM mandate.scopes WHERE scope_id = $1 LIMIT 1`,
+      [scopeId]
+    );
+    if (recheck.rows.length > 0) {
+      return recheck.rows[0].scope_id;
+    }
+    throw new Error('Failed to create or retrieve scope');
   }
 
   return insertResult.rows[0].scope_id;
@@ -170,11 +191,40 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // =========================================================================
-      // NEW: Step 2 - Validate signals against spec
+      // NEW: Step 2 - Execute Observe phase (Signal population)
+      // @see RFC-002 Section 7
+      // =========================================================================
+      // Extract optional unstructured context from request
+      const requestBody = request.body as DecisionRequest;
+      const unstructuredContext = requestBody.unstructured_context ?? '';
+
+      // Populate signals from unstructured context
+      let enrichedDecisionAfterObserve = decisionEvent;
+      if (unstructuredContext.trim().length > 0) {
+        try {
+          enrichedDecisionAfterObserve = await executeObservePhase(
+            decisionEvent,
+            spec,
+            unstructuredContext,
+            {
+              enableAssistedParsing: false, // Configure based on deployment
+              assistedParsingConfidenceThreshold: 0.8,
+            }
+          );
+        } catch (err: any) {
+          return reply.status(500).send({
+            error: 'Observe phase failed',
+            details: err.message,
+          });
+        }
+      }
+
+      // =========================================================================
+      // Step 3 - Validate signals against spec
       // @see BUILD-PLAN-v1.2 Section 4
       // =========================================================================
       try {
-        SignalValidator.validate(spec, decisionEvent);
+        SignalValidator.validate(spec, enrichedDecisionAfterObserve);
       } catch (err: any) {
         return reply.status(400).send({
           error: 'Signal validation failed',
@@ -183,11 +233,11 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // =========================================================================
-      // Step 3 - Enrich decision with spec reference
+      // Step 4 - Enrich decision with spec reference
       // @see RFC-001 Section 12
       // =========================================================================
       const enrichedDecision: DecisionEvent = {
-        ...decisionEvent,
+        ...enrichedDecisionAfterObserve,
         spec_id: spec.spec_id,
         spec_version: spec.version,
       };
@@ -220,13 +270,13 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       await insertTimelineEntry(decisionReceivedEntry, ctx);
 
       // =========================================================================
-      // Step 4 - Evaluate with spec constraint
+      // Step 5 - Evaluate with spec constraint
       // @see BUILD-PLAN-v1.2 Section 7
       // =========================================================================
       const evaluationResult = evaluateDecision(enrichedDecision, spec, snapshot);
 
       // =========================================================================
-      // Step 5 - Persist verdict with spec and scope reference (RFC-002)
+      // Step 6 - Persist verdict with spec and scope reference (RFC-002)
       // @see RFC-001 Section 12, RFC-002 Section 9
       // =========================================================================
       // RFC-002: Resolve scope_id from decision's scope fields
