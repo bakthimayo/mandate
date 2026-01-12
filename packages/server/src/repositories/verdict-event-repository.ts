@@ -1,7 +1,7 @@
 /**
  * Verdict Event Repository - RFC-002 Isolation Enforced
  *
- * All queries enforce organization_id and domain_id boundaries.
+ * All queries enforce organization_id and domain_name boundaries.
  * No implicit cross-domain aggregation.
  */
 
@@ -35,18 +35,18 @@ export async function insertVerdictEvent(
     );
   }
 
-  // RFC-002: Require domain for auditability
-  if (!event.domain) {
+  // RFC-002: Require domain_name for auditability
+  if (!event.domain_name) {
     throw new Error(
-      `RFC-002 violation: VerdictEvent missing required domain (verdict_id: ${event.verdict_id})`
+      `RFC-002 violation: VerdictEvent missing required domain_name (verdict_id: ${event.verdict_id})`
     );
   }
 
   const pool = getPool();
   await pool.query(
     `INSERT INTO mandate.verdict_events 
-     (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_id, spec_id, scope_id, domain, owning_team)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       event.verdict_id,
       event.decision_id,
@@ -55,14 +55,12 @@ export async function insertVerdictEvent(
       event.matched_policy_ids,
       event.timestamp,
       ctx.organization_id,
-      ctx.domain_id,
+      ctx.domain_name,
       event.spec_id,
       event.scope_id,
-      event.domain,
-      event.owning_team ?? null,
     ]
   );
-}
+  }
 
 /**
  * Retrieves a VerdictEvent by ID within isolation boundaries.
@@ -83,18 +81,17 @@ export async function getVerdictEventById(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    organization_id: string;
+    domain_name: string;
     spec_id: string;
-    spec_version: string;
     scope_id: string;
-    domain: string;
-    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
-     FROM mandate.verdict_events
-     WHERE verdict_id = $1
-       AND organization_id = $2
-       AND domain_id = $3`,
-    [verdict_id, ctx.organization_id, ctx.domain_id]
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+      FROM mandate.verdict_events
+      WHERE verdict_id = $1
+        AND organization_id = $2
+        AND domain_name = $3`,
+    [verdict_id, ctx.organization_id, ctx.domain_name]
   );
 
   if (result.rows.length === 0) {
@@ -104,28 +101,28 @@ export async function getVerdictEventById(
   const row = result.rows[0];
   return {
     verdict_id: row.verdict_id,
+    organization_id: row.organization_id,
     decision_id: row.decision_id,
     snapshot_id: row.snapshot_id,
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: row.spec_version,
+    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    domain_name: row.domain_name,
     scope_id: row.scope_id,
-    domain: row.domain,
-    owning_team: row.owning_team,
   };
-}
+  }
 
-/**
- * Retrieves VerdictEvent by decision_id within isolation boundaries.
- * RFC-002: Returns verdict with spec_id, scope_id, and domain for auditability.
- * Returns null if not found or outside isolation context.
- */
-export async function getVerdictEventByDecisionId(
+  /**
+  * Retrieves VerdictEvent by decision_id within isolation boundaries.
+  * RFC-002: Returns verdict with spec_id, scope_id, and domain for auditability.
+  * Returns null if not found or outside isolation context.
+  */
+  export async function getVerdictEventByDecisionId(
   decision_id: string,
   ctx: IsolationContext
-): Promise<VerdictEvent | null> {
+  ): Promise<VerdictEvent | null> {
   validateIsolationContext(ctx);
 
   const pool = getPool();
@@ -136,20 +133,19 @@ export async function getVerdictEventByDecisionId(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    organization_id: string;
+    domain_name: string;
     spec_id: string;
-    spec_version: string;
     scope_id: string;
-    domain: string;
-    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
-     FROM mandate.verdict_events
-     WHERE decision_id = $1
-       AND organization_id = $2
-       AND domain_id = $3
-     ORDER BY timestamp DESC
-     LIMIT 1`,
-    [decision_id, ctx.organization_id, ctx.domain_id]
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+      FROM mandate.verdict_events
+      WHERE decision_id = $1
+        AND organization_id = $2
+        AND domain_name = $3
+      ORDER BY timestamp DESC
+      LIMIT 1`,
+    [decision_id, ctx.organization_id, ctx.domain_name]
   );
 
   if (result.rows.length === 0) {
@@ -159,18 +155,18 @@ export async function getVerdictEventByDecisionId(
   const row = result.rows[0];
   return {
     verdict_id: row.verdict_id,
+    organization_id: row.organization_id,
     decision_id: row.decision_id,
     snapshot_id: row.snapshot_id,
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: row.spec_version,
+    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    domain_name: row.domain_name,
     scope_id: row.scope_id,
-    domain: row.domain,
-    owning_team: row.owning_team,
   };
-}
+  }
 
 /**
  * Lists VerdictEvents within isolation boundaries.
@@ -194,32 +190,31 @@ export async function listVerdictEvents(
     verdict: string;
     matched_policy_ids: readonly string[];
     timestamp: Date;
+    organization_id: string;
+    domain_name: string;
     spec_id: string;
-    spec_version: string;
     scope_id: string;
-    domain: string;
-    owning_team?: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, spec_id, scope_id, domain, owning_team
-     FROM mandate.verdict_events
-     WHERE organization_id = $1
-       AND domain_id = $2
-     ORDER BY timestamp DESC
-     LIMIT $3 OFFSET $4`,
-    [ctx.organization_id, ctx.domain_id, limit, offset]
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+      FROM mandate.verdict_events
+      WHERE organization_id = $1
+        AND domain_name = $2
+      ORDER BY timestamp DESC
+      LIMIT $3 OFFSET $4`,
+    [ctx.organization_id, ctx.domain_name, limit, offset]
   );
 
   return result.rows.map((row) => ({
     verdict_id: row.verdict_id,
+    organization_id: row.organization_id,
     decision_id: row.decision_id,
     snapshot_id: row.snapshot_id,
     verdict: row.verdict as VerdictEvent['verdict'],
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: row.spec_version,
+    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    domain_name: row.domain_name,
     scope_id: row.scope_id,
-    domain: row.domain,
-    owning_team: row.owning_team,
   }));
-}
+  }

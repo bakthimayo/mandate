@@ -5,9 +5,10 @@
  * Actions are performed, and Mandate is notified at the 'executed' stage
  * for audit trail purposes.
  *
- * RFC-002 Compliance:
- * - organization_id is explicitly provided (required)
- * - scope.domain is explicitly provided (required)
+ * RFC-002 v1.2 Compliance:
+ * - organization_id is explicitly provided (required, top-level)
+ * - domain_name is explicitly provided (required, top-level)
+ * - scope includes organization_id and domain_name (required)
  * - No inference or defaults - caller provides full attribution
  *
  * Key principles:
@@ -50,6 +51,7 @@ async function reportExecutedAction(
   try {
     const response = await client.requestDecision({
       organization_id: ORGANIZATION_ID,
+      domain_name: DOMAIN,
       intent,
       stage: 'executed',
       actor: 'observe-agent',
@@ -59,7 +61,8 @@ async function reportExecutedAction(
         execution_success: success,
       },
       scope: {
-        domain: DOMAIN,
+        organization_id: ORGANIZATION_ID,
+        domain_name: DOMAIN,
         service: 'audit-logger',
         agent: 'observe-agent',
         environment: 'production',
@@ -124,34 +127,34 @@ async function observeAgent(): Promise<void> {
     loginSuccess
   );
 
-  // console.log('\n--- Simulating data export ---');
-  // const exportSuccess = await simulateDataExport('csv', 5000);
-  // await reportExecutedAction(
-  //   'data.export',
-  //   'customer-records',
-  //   {
-  //     format: 'csv',
-  //     record_count: 5000,
-  //     includes_pii: true,
-  //   },
-  //   exportSuccess
-  // );
+  console.log('\n--- Simulating data export ---');
+  const exportSuccess = await simulateDataExport('csv', 5000);
+  await reportExecutedAction(
+    'data.export',
+    'customer-records',
+    {
+      format: 'csv',
+      record_count: 5000,
+      includes_pii: true,
+    },
+    exportSuccess
+  );
 
-  // console.log('\n--- Simulating config change ---');
-  // const configSuccess = await simulateConfigChange('max_connections', '100');
-  // await reportExecutedAction(
-  //   'config.update',
-  //   'database-pool',
-  //   {
-  //     key: 'max_connections',
-  //     old_value: '50',
-  //     new_value: '100',
-  //   },
-  //   configSuccess
-  // );
+  console.log('\n--- Simulating config change ---');
+  const configSuccess = await simulateConfigChange('max_connections', '100');
+  await reportExecutedAction(
+    'config.update',
+    'database-pool',
+    {
+      key: 'max_connections',
+      old_value: '50',
+      new_value: '100',
+    },
+    configSuccess
+  );
 
-  // console.log('\n=== Observation complete ===');
-  // console.log('All actions have been logged to Mandate for audit trail.');
+  console.log('\n=== Observation complete ===');
+  console.log('All actions have been logged to Mandate for audit trail.');
 }
 
 observeAgent().catch(console.error);

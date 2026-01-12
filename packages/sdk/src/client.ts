@@ -21,17 +21,19 @@ export interface MandateClientConfig {
 
 /**
  * Input for requesting a decision.
- * RFC-002: organization_id and scope.domain are required.
+ * RFC-002: organization_id and domain_name are required.
  */
 export interface RequestDecisionInput {
   organization_id: string;
+  domain_name: string;
   intent: string;
   stage: 'proposed' | 'pre_commit' | 'executed';
   actor: string;
   target: string;
   context?: Record<string, unknown>;
-  scope: {
-    domain: string;
+  scope?: {
+    organization_id?: string;
+    domain_name?: string;
     service?: string;
     agent?: string;
     system?: string;
@@ -71,6 +73,7 @@ export class MandateClient {
     const body: Record<string, unknown> = {
       decision_id: randomUUID(),
       organization_id: input.organization_id,
+      domain_name: input.domain_name,
       intent: input.intent,
       stage: input.stage,
       actor: input.actor,
@@ -78,11 +81,11 @@ export class MandateClient {
       context: input.context ?? {},
       scope: {
         organization_id: input.organization_id,
-        domain: input.scope.domain,
-        service: input.scope.service,
-        agent: input.scope.agent,
-        system: input.scope.system,
-        environment: input.scope.environment,
+        domain_name: input.domain_name,
+        service: input.scope?.service,
+        agent: input.scope?.agent,
+        system: input.scope?.system,
+        environment: input.scope?.environment,
       },
       timestamp: new Date().toISOString(),
     };

@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-     <!-- Header -->
+    <!-- Header -->
     <div class="flex items-center gap-4 mb-6">
       <NuxtLink
         to="/"
@@ -12,10 +12,10 @@
       <NuxtLink
         :to="{
           path: `/decisions/${route.params.decisionId}/timeline`,
-          query: { 
+          query: {
             organization_id: route.query.organization_id,
-            domain: route.query.domain
-          }
+            domain_name: route.query.domain_name,
+          },
         }"
         class="text-blue-600 hover:underline text-sm font-medium"
       >
@@ -35,32 +35,51 @@
 
     <!-- Decision Timeline -->
     <div v-else-if="timeline">
-     
-
-     <!-- Decision Summary -->
+      <!-- Decision Summary -->
       <div class="audit-panel">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p class="text-xs text-gray-600 font-medium mb-1">DECISION ID</p>
-            <p class="audit-text-mono">
-              {{ timeline.decision_id.slice(0, 12) }}...
-            </p>
-          </div>
+             <p class="text-xs text-gray-600 font-medium mb-1">DECISION ID</p>
+             <p class="audit-text-mono text-xs">
+               {{ timeline.decision_id?.slice(0, 12) || '—' }}...
+             </p>
+           </div>
+           <div>
+             <p class="text-xs text-gray-600 font-medium mb-1">INTENT</p>
+             <p class="text-sm text-gray-900">
+               {{ timeline.decision_event?.intent || '—' }}
+             </p>
+           </div>
+           <div>
+             <p class="text-xs text-gray-600 font-medium mb-1">STAGE</p>
+             <p class="text-sm text-gray-900">
+               {{ timeline.decision_event?.stage || '—' }}
+             </p>
+           </div>
+           <div>
+             <p class="text-xs text-gray-600 font-medium mb-1">SPEC ID</p>
+             <p class="audit-text-mono text-xs">
+               {{ timeline.decision_event?.spec_id?.slice(0, 12) || '—' }}...
+             </p>
+           </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
           <div>
-            <p class="text-xs text-gray-600 font-medium mb-1">INTENT</p>
+            <p class="text-xs text-gray-600 font-medium mb-1">DOMAIN</p>
             <p class="text-sm text-gray-900">
-              {{ timeline.decision_event.intent }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-gray-600 font-medium mb-1">STAGE</p>
-            <p class="text-sm text-gray-900">
-              {{ timeline.decision_event.stage }}
+              {{ timeline.decision_event?.domain_name || '—' }}
             </p>
           </div>
           <div v-if="timeline.verdict">
             <p class="text-xs text-gray-600 font-medium mb-1">VERDICT</p>
             <VerdictBadge :verdict="timeline.verdict.verdict" />
+          </div>
+          <div v-if="timeline.verdict?.scope_id">
+            <p class="text-xs text-gray-600 font-medium mb-1">SCOPE ID</p>
+            <p class="audit-text-mono text-xs">
+              {{ timeline.verdict.scope_id.slice(0, 12) }}...
+            </p>
           </div>
         </div>
       </div>
@@ -83,7 +102,7 @@
 
     <!-- Empty State -->
     <div v-else class="audit-panel text-center py-8">
-     <p class="text-gray-600">Decision not found.</p>
+      <p class="text-gray-600">Decision not found.</p>
     </div>
   </div>
 </template>
@@ -108,23 +127,27 @@ const decisionId = computed(() => route.params.decisionId as string);
 const organizationId = computed(
   () => (route.query.organization_id as string) || ""
 );
-const domain = computed(() => (route.query.domain as string) || "");
+const domain_name = computed(() => (route.query.domain_name as string) || "");
 
 const loadTimeline = async () => {
-  if (!decisionId.value || isLoading || loadedDecisionId.value === decisionId.value) {
-    return;
-  }
-  
-  isLoading = true;
-  loading.value = true;
-  error.value = null;
-  timeline.value = null;
+   if (
+     !decisionId.value ||
+     isLoading ||
+     loadedDecisionId.value === decisionId.value
+   ) {
+     return;
+   }
 
-  const result = await fetchDecisionTimeline(
-    decisionId.value,
-    organizationId.value || undefined,
-    domain.value || undefined
-  );
+   isLoading = true;
+   loading.value = true;
+   error.value = null;
+   timeline.value = null;
+
+   const result = await fetchDecisionTimeline(
+     decisionId.value,
+     organizationId.value || undefined,
+     domain_name.value || undefined
+   );
 
   if (result.error) {
     error.value = result.error;
@@ -143,8 +166,8 @@ onMounted(() => {
 });
 
 watch(
-  decisionId,
-  (newId, oldId) => {
+  [decisionId, organizationId, domain_name],
+  ([newId, newOrgId, newDomainName], [oldId]) => {
     if (newId && newId !== oldId && newId !== loadedDecisionId.value) {
       loadTimeline();
     }

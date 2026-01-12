@@ -57,10 +57,10 @@ export function evaluateDecision(
     );
   }
 
-  if (decision.scope.domain !== spec.domain) {
+  if (decision.scope.domain_name !== spec.domain_name) {
     throw new Error(
-      `RFC-002 violation: decision.scope.domain "${decision.scope.domain}" ` +
-        `does not match spec.domain "${spec.domain}"`
+      `RFC-002 violation: decision.scope.domain_name "${decision.scope.domain_name}" ` +
+        `does not match spec.domain_name "${spec.domain_name}"`
     );
   }
 

@@ -32,8 +32,8 @@
           @change="updateFilter('domain', ($event.target as HTMLSelectElement).value)"
         >
           <option value="">Select a domain</option>
-          <option v-for="d in domains" :key="d.domain_id" :value="d.name">
-            {{ d.name }}
+          <option v-for="d in domains" :key="d.domain_name" :value="d.domain_name">
+            {{ d.domain_name }}
           </option>
         </select>
         <p v-if="!filters.domain && !loadingDomains && !domainsError" class="text-xs text-red-500 mt-1">
@@ -134,8 +134,7 @@ interface FilterState {
 }
 
 interface DomainItem {
-  domain_id: string
-  name: string
+  domain_name: string
 }
 
 const config = useRuntimeConfig()

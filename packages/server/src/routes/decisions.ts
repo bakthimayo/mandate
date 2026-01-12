@@ -38,16 +38,16 @@ interface ListDecisionsQuery {
   offset?: string;
 }
 
-async function resolveDomainId(
+async function resolveDomainName(
   organization_id: string,
   domain_name: string
-): Promise<string | null> {
+): Promise<boolean> {
   const pool = getPool();
-  const result = await pool.query<{ domain_id: string }>(
-    `SELECT domain_id FROM mandate.domains WHERE organization_id = $1 AND name = $2`,
+  const result = await pool.query<{ domain_name: string }>(
+    `SELECT domain_name FROM mandate.domains WHERE organization_id = $1 AND domain_name = $2`,
     [organization_id, domain_name]
   );
-  return result.rows.length > 0 ? result.rows[0].domain_id : null;
+  return result.rows.length > 0;
 }
 
 /**
@@ -58,12 +58,11 @@ async function resolveDomainId(
 async function resolveOrCreateScopeId(
   scope: Record<string, any>,
   organization_id: string,
-  domain_id: string
+  domain_name: string
 ): Promise<string> {
   const pool = getPool();
 
   // Extract scope fields, default to null if not provided
-  const scopeDomain = scope.domain ?? null;
   const service = scope.service ?? null;
   const agent = scope.agent ?? null;
   const scopeSystem = scope.system ?? null;
@@ -73,14 +72,15 @@ async function resolveOrCreateScopeId(
   // Step 1: Query for existing scope with matching selectors
   const existingResult = await pool.query<{ scope_id: string }>(
     `SELECT scope_id FROM mandate.scopes 
-     WHERE COALESCE(scope_domain, '') = COALESCE($1, '')
-       AND COALESCE(service, '') = COALESCE($2, '')
-       AND COALESCE(agent, '') = COALESCE($3, '')
-       AND COALESCE(scope_system, '') = COALESCE($4, '')
-       AND COALESCE(environment, '') = COALESCE($5, '')
-       AND COALESCE(tenant, '') = COALESCE($6, '')
+     WHERE organization_id = $1
+       AND domain_name = $2
+       AND COALESCE(service, '') = COALESCE($3, '')
+       AND COALESCE(agent, '') = COALESCE($4, '')
+       AND COALESCE(scope_system, '') = COALESCE($5, '')
+       AND COALESCE(environment, '') = COALESCE($6, '')
+       AND COALESCE(tenant, '') = COALESCE($7, '')
      LIMIT 1`,
-    [scopeDomain, service, agent, scopeSystem, environment, tenant]
+    [organization_id, domain_name, service, agent, scopeSystem, environment, tenant]
   );
 
   if (existingResult.rows.length > 0) {
@@ -88,13 +88,17 @@ async function resolveOrCreateScopeId(
   }
 
   // Step 2: Insert new scope (append-only, no UPDATE)
+  // RFC-002: scope_id MUST embed domain_name prefix
+  const scopeId = [domain_name, service, agent, scopeSystem, environment, tenant]
+    .filter(Boolean)
+    .join('.');
+  
   const insertResult = await pool.query<{ scope_id: string }>(
     `INSERT INTO mandate.scopes (
-       scope_domain, service, agent, scope_system, environment, tenant,
-       organization_id, domain_id
+       scope_id, organization_id, domain_name, service, agent, scope_system, environment, tenant
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING scope_id`,
-    [scopeDomain, service, agent, scopeSystem, environment, tenant, organization_id, domain_id]
+    [scopeId, organization_id, domain_name, service, agent, scopeSystem, environment, tenant]
   );
 
   if (insertResult.rows.length === 0) {
@@ -127,24 +131,24 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      if (!decisionEvent.scope.domain) {
+      if (!decisionEvent.domain_name) {
         return reply.status(400).send({
-          error: 'RFC-002 violation: scope.domain is required',
+          error: 'RFC-002 violation: domain_name is required',
         });
       }
 
-      const domain_id = await resolveDomainId(
+      const domainExists = await resolveDomainName(
         decisionEvent.organization_id,
-        decisionEvent.scope.domain
+        decisionEvent.domain_name
       );
 
-      if (!domain_id) {
+      if (!domainExists) {
         return reply.status(400).send({
-          error: `RFC-002 violation: domain "${decisionEvent.scope.domain}" not found in organization`,
+          error: `RFC-002 violation: domain "${decisionEvent.domain_name}" not found in organization`,
         });
       }
 
-      const ctx = createIsolationContext(decisionEvent.organization_id, domain_id);
+      const ctx = createIsolationContext(decisionEvent.organization_id, decisionEvent.domain_name);
       const pool = getPool();
       const specRepo = new SpecRepository(pool);
 
@@ -154,14 +158,14 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       // =========================================================================
       const spec = await specRepo.resolveActiveSpec(
         decisionEvent.organization_id,
-        decisionEvent.scope.domain,
+        decisionEvent.domain_name,
         decisionEvent.intent,
         decisionEvent.stage
       );
 
       if (!spec) {
         return reply.status(400).send({
-          error: `No active spec found for intent='${decisionEvent.intent}' stage='${decisionEvent.stage}' in domain='${decisionEvent.scope.domain}'`,
+          error: `No active spec found for intent='${decisionEvent.intent}' stage='${decisionEvent.stage}' in domain='${decisionEvent.domain_name}'`,
         });
       }
 
@@ -199,6 +203,8 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
 
       const decisionReceivedEntry: TimelineEntry = {
         entry_id: randomUUID(),
+        organization_id: enrichedDecision.organization_id,
+        domain_name: enrichedDecision.domain_name,
         decision_id: enrichedDecision.decision_id,
         intent: enrichedDecision.intent,
         stage: enrichedDecision.stage,
@@ -227,12 +233,13 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       const scopeId = await resolveOrCreateScopeId(
         enrichedDecision.scope,
         enrichedDecision.organization_id,
-        domain_id
+        enrichedDecision.domain_name
       );
       const owningTeam = 'TODO_RESOLVE_OWNING_TEAM';
 
       const enrichedVerdict: VerdictEvent = {
         verdict_id: randomUUID(),
+        organization_id: enrichedDecision.organization_id,
         decision_id: enrichedDecision.decision_id,
         snapshot_id: snapshot.snapshot_id,
         verdict: evaluationResult.verdict,
@@ -241,7 +248,7 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
         spec_id: spec.spec_id,
         spec_version: spec.version,
         scope_id: scopeId, // RFC-002: Scope used for evaluation
-        domain: spec.domain, // RFC-002: Domain for auditability
+        domain_name: enrichedDecision.domain_name, // RFC-002: Domain for auditability
         owning_team: owningTeam, // RFC-002: Team ownership
       };
 
@@ -249,6 +256,8 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
 
       const verdictIssuedEntry: TimelineEntry = {
         entry_id: randomUUID(),
+        organization_id: enrichedDecision.organization_id,
+        domain_name: enrichedDecision.domain_name,
         decision_id: enrichedDecision.decision_id,
         intent: enrichedDecision.intent,
         stage: enrichedDecision.stage,
@@ -262,7 +271,7 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
           spec_id: spec.spec_id,
           spec_version: spec.version,
           scope_id: scopeId,
-          domain: spec.domain,
+          domain_name: enrichedDecision.domain_name,
           owning_team: owningTeam,
         },
         severity: 'info',
@@ -271,7 +280,6 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
         timestamp: new Date().toISOString(),
         spec_id: spec.spec_id,
         scope_id: scopeId,
-        domain: spec.domain,
         owning_team: owningTeam,
       };
       await insertTimelineEntry(verdictIssuedEntry, ctx);
@@ -301,9 +309,9 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
       // Get the decision event to extract org/domain context
       const decisionResult = await pool.query<{
         organization_id: string;
-        domain_id: string;
+        domain_name: string;
       }>(
-        `SELECT organization_id, domain_id FROM mandate.decision_events WHERE decision_id = $1`,
+        `SELECT organization_id, domain_name FROM mandate.decision_events WHERE decision_id = $1`,
         [decision_id]
       );
 
@@ -313,11 +321,13 @@ export async function decisionsRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const { organization_id, domain_id } = decisionResult.rows[0];
-      const ctx = createIsolationContext(organization_id, domain_id);
+      const { organization_id, domain_name } = decisionResult.rows[0];
+      const ctx = createIsolationContext(organization_id, domain_name);
 
       const outcomeEntry: TimelineEntry = {
         entry_id: randomUUID(),
+        organization_id,
+        domain_name,
         decision_id,
         intent: 'outcome',
         stage: 'executed',

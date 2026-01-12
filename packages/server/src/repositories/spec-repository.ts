@@ -31,7 +31,7 @@ export class SpecRepository {
         spec_id,
         version,
         organization_id,
-        domain,
+        domain_name,
         intent,
         stage,
         allowed_verdicts,
@@ -43,7 +43,7 @@ export class SpecRepository {
       FROM mandate.mandate_specs
       WHERE
         organization_id = $1
-        AND domain = $2
+        AND domain_name = $2
         AND intent = $3
         AND stage = $4
         AND status = 'active'
@@ -72,7 +72,7 @@ export class SpecRepository {
         spec_id,
         version,
         organization_id,
-        domain,
+        domain_name,
         intent,
         stage,
         allowed_verdicts,
@@ -113,37 +113,37 @@ export class SpecRepository {
     }
 
     await this.pool.query(
-      `
-      INSERT INTO mandate.mandate_specs (
-        spec_id,
-        version,
-        organization_id,
-        domain,
-        intent,
-        stage,
-        allowed_verdicts,
-        signals,
-        enforcement,
-        status,
-        replaced_by,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `,
-      [
-        spec.spec_id,
-        spec.version,
-        spec.organization_id,
-        spec.domain,
-        spec.intent,
-        spec.stage,
-        spec.allowed_verdicts,
-        JSON.stringify(spec.signals),
-        JSON.stringify(spec.enforcement),
-        spec.status,
-        spec.replaced_by ?? null,
-        spec.created_at,
-      ]
-    );
+        `
+        INSERT INTO mandate.mandate_specs (
+          spec_id,
+          version,
+          organization_id,
+          domain_name,
+          intent,
+          stage,
+          allowed_verdicts,
+          signals,
+          enforcement,
+          status,
+          replaced_by,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `,
+        [
+          spec.spec_id,
+          spec.version,
+          spec.organization_id,
+          spec.domain_name,
+          spec.intent,
+          spec.stage,
+          spec.allowed_verdicts,
+          JSON.stringify(spec.signals),
+          JSON.stringify(spec.enforcement),
+          spec.status,
+          spec.replaced_by ?? null,
+          spec.created_at,
+        ]
+      );
   }
 
   /**
@@ -156,7 +156,7 @@ export class SpecRepository {
         spec_id,
         version,
         organization_id,
-        domain,
+        domain_name,
         intent,
         stage,
         allowed_verdicts,
@@ -180,7 +180,7 @@ export class SpecRepository {
       spec_id: row.spec_id,
       version: row.version,
       organization_id: row.organization_id,
-      domain: row.domain,
+      domain_name: row.domain_name,
       intent: row.intent,
       stage: row.stage,
       allowed_verdicts: row.allowed_verdicts,
@@ -191,4 +191,4 @@ export class SpecRepository {
       created_at: row.created_at,
     };
   }
-}
+  }

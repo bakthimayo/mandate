@@ -1,7 +1,7 @@
 /**
  * Audit Timeline Repository - RFC-002 Isolation Enforced
  *
- * All queries enforce organization_id and domain_id boundaries.
+ * All queries enforce organization_id and domain_name boundaries.
  * No implicit cross-domain aggregation.
  * Preserves domain context for compliance exports.
  */
@@ -24,7 +24,7 @@ export async function insertTimelineEntry(
   const pool = getPool();
   await pool.query(
     `INSERT INTO mandate.audit_timeline_entries 
-     (entry_id, decision_id, intent, stage, actor, target, summary, details, severity, event_source, authority_level, timestamp, organization_id, domain_id)
+     (entry_id, decision_id, intent, stage, actor, target, summary, details, severity, event_source, authority_level, timestamp, organization_id, domain_name)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       entry.entry_id,
@@ -40,7 +40,7 @@ export async function insertTimelineEntry(
       entry.authority_level,
       entry.timestamp,
       ctx.organization_id,
-      ctx.domain_id,
+      ctx.domain_name,
     ]
   );
 }
@@ -74,8 +74,8 @@ export async function getTimelineEntryById(
      FROM mandate.audit_timeline_entries
      WHERE entry_id = $1
        AND organization_id = $2
-       AND domain_id = $3`,
-    [entry_id, ctx.organization_id, ctx.domain_id]
+       AND domain_name = $3`,
+    [entry_id, ctx.organization_id, ctx.domain_name]
   );
 
   if (result.rows.length === 0) {
@@ -85,6 +85,8 @@ export async function getTimelineEntryById(
   const row = result.rows[0];
   return {
     entry_id: row.entry_id,
+    organization_id: ctx.organization_id,
+    domain_name: ctx.domain_name,
     decision_id: row.decision_id,
     intent: row.intent,
     stage: row.stage as TimelineEntry['stage'],
@@ -97,16 +99,16 @@ export async function getTimelineEntryById(
     authority_level: row.authority_level as TimelineEntry['authority_level'],
     timestamp: row.timestamp.toISOString(),
   };
-}
+  }
 
-/**
- * Lists TimelineEntries for a decision within isolation boundaries.
- * Preserves domain context for audit trails.
- */
-export async function listTimelineEntriesByDecisionId(
+  /**
+  * Lists TimelineEntries for a decision within isolation boundaries.
+  * Preserves domain context for audit trails.
+  */
+  export async function listTimelineEntriesByDecisionId(
   decision_id: string,
   ctx: IsolationContext
-): Promise<readonly TimelineEntry[]> {
+  ): Promise<readonly TimelineEntry[]> {
   validateIsolationContext(ctx);
 
   const pool = getPool();
@@ -128,13 +130,15 @@ export async function listTimelineEntriesByDecisionId(
      FROM mandate.audit_timeline_entries
      WHERE decision_id = $1
        AND organization_id = $2
-       AND domain_id = $3
+       AND domain_name = $3
      ORDER BY timestamp ASC`,
-    [decision_id, ctx.organization_id, ctx.domain_id]
+    [decision_id, ctx.organization_id, ctx.domain_name]
   );
 
   return result.rows.map((row) => ({
     entry_id: row.entry_id,
+    organization_id: ctx.organization_id,
+    domain_name: ctx.domain_name,
     decision_id: row.decision_id,
     intent: row.intent,
     stage: row.stage as TimelineEntry['stage'],
@@ -147,16 +151,16 @@ export async function listTimelineEntriesByDecisionId(
     authority_level: row.authority_level as TimelineEntry['authority_level'],
     timestamp: row.timestamp.toISOString(),
   }));
-}
+  }
 
-/**
- * Lists TimelineEntries within isolation boundaries.
- * No cross-domain aggregation.
- */
-export async function listTimelineEntries(
+  /**
+  * Lists TimelineEntries within isolation boundaries.
+  * No cross-domain aggregation.
+  */
+  export async function listTimelineEntries(
   ctx: IsolationContext,
   options?: { limit?: number; offset?: number }
-): Promise<readonly TimelineEntry[]> {
+  ): Promise<readonly TimelineEntry[]> {
   validateIsolationContext(ctx);
 
   const limit = options?.limit ?? 100;
@@ -180,14 +184,16 @@ export async function listTimelineEntries(
     `SELECT entry_id, decision_id, intent, stage, actor, target, summary, details, severity, event_source, authority_level, timestamp
      FROM mandate.audit_timeline_entries
      WHERE organization_id = $1
-       AND domain_id = $2
+       AND domain_name = $2
      ORDER BY timestamp DESC
      LIMIT $3 OFFSET $4`,
-    [ctx.organization_id, ctx.domain_id, limit, offset]
+    [ctx.organization_id, ctx.domain_name, limit, offset]
   );
 
   return result.rows.map((row) => ({
     entry_id: row.entry_id,
+    organization_id: ctx.organization_id,
+    domain_name: ctx.domain_name,
     decision_id: row.decision_id,
     intent: row.intent,
     stage: row.stage as TimelineEntry['stage'],
@@ -200,4 +206,4 @@ export async function listTimelineEntries(
     authority_level: row.authority_level as TimelineEntry['authority_level'],
     timestamp: row.timestamp.toISOString(),
   }));
-}
+  }

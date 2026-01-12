@@ -62,7 +62,7 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
       organization_id?: string;
       scope?: {
         organization_id?: string;
-        domain?: string;
+        domain_name?: string;
         service?: string;
         agent?: string;
         system?: string;
@@ -121,11 +121,11 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
       continue;
     }
 
-    if (!policy.scope.domain) {
+    if (!policy.scope.domain_name) {
       errors.push({
         policy_id: policy.id,
         policy_name: policy.name,
-        reason: 'scope missing domain',
+        reason: 'scope missing domain_name',
       });
       continue;
     }
@@ -134,10 +134,10 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
     const specResult = await pool.query<{
       spec_id: string;
       organization_id: string;
-      domain: string;
+      domain_name: string;
       status: string;
     }>(
-      `SELECT spec_id, organization_id, domain, status 
+      `SELECT spec_id, organization_id, domain_name, status 
        FROM mandate.mandate_specs 
        WHERE spec_id = $1 AND status = 'active'`,
       [policy.spec_id]
@@ -158,9 +158,9 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
     const scopeCheckResult = await pool.query<{
       scope_id: string;
       organization_id: string;
-      domain_id: string;
+      domain_name: string;
     }>(
-      `SELECT scope_id, organization_id, domain_id FROM mandate.scopes WHERE scope_id = $1`,
+      `SELECT scope_id, organization_id, domain_name FROM mandate.scopes WHERE scope_id = $1`,
       [policy.scope_id]
     );
 
@@ -175,12 +175,12 @@ export async function runPolicyScopeValidation(): Promise<StartupValidationResul
 
     const scope = scopeCheckResult.rows[0];
 
-    // RFC-002: spec.domain MUST equal scope.domain
-    if (spec.domain !== policy.scope.domain) {
+    // RFC-002: spec.domain_name MUST equal scope.domain_name
+    if (spec.domain_name !== policy.scope.domain_name) {
       errors.push({
         policy_id: policy.id,
         policy_name: policy.name,
-        reason: `RFC-002 violation: spec domain "${spec.domain}" does not match scope domain "${policy.scope.domain}"`,
+        reason: `RFC-002 violation: spec domain_name "${spec.domain_name}" does not match scope domain_name "${policy.scope.domain_name}"`,
       });
       continue;
     }

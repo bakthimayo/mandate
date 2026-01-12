@@ -56,11 +56,11 @@ function validatePolicyAgainstSpec(policy: Policy, spec: DecisionSpec): void {
     );
   }
 
-  // Rule 4: Policy's scope domain MUST match spec domain (RFC-002)
-  if (policy.scope.domain !== spec.domain) {
+  // Rule 4: Policy's scope domain_name MUST match spec domain_name (RFC-002)
+  if (policy.scope.domain_name !== spec.domain_name) {
     throw new Error(
-      `RFC-002 violation: Policy '${policy.id}' scope domain '${policy.scope.domain}' ` +
-        `does not match spec domain '${spec.domain}' ` +
+      `RFC-002 violation: Policy '${policy.id}' scope domain_name '${policy.scope.domain_name}' ` +
+        `does not match spec domain_name '${spec.domain_name}' ` +
         `(spec: ${spec.spec_id}@${spec.version})`
     );
   }

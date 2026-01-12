@@ -31,13 +31,13 @@ export type Source = z.infer<typeof SourceSchema>;
 
 /**
  * Scope defines where policies apply.
- * organization_id and domain are required governance boundaries.
+ * organization_id and domain_name are required governance boundaries.
  * Other selector fields must match; missing fields act as wildcards.
  * @see RFC-001 Section 8, RFC-002
  */
 export const ScopeSchema = z.object({
   organization_id: z.string(),
-  domain: z.string(),
+  domain_name: z.string(),
   service: z.string().optional(),
   agent: z.string().optional(),
   system: z.string().optional(),
@@ -49,12 +49,13 @@ export type Scope = z.infer<typeof ScopeSchema>;
  * A DecisionEvent declares intent to perform an action.
  * Immutable, append-only, contextual (not executable).
  * MUST resolve to a DecisionSpec and include proper organizational attribution.
- * RFC-002: Must include organization_id and domain for scope resolution.
+ * RFC-002: Must include organization_id and domain_name for scope resolution.
  * @see RFC-001 Section 5.1, RFC-002 Section 9, Section 12
  */
 export const DecisionEventSchema = z.object({
   decision_id: z.string(),
   organization_id: z.string(),
+  domain_name: z.string(),
   intent: z.string(),
   stage: StageSchema,
   actor: z.string(),
@@ -75,6 +76,7 @@ export type DecisionEvent = z.infer<typeof DecisionEventSchema>;
  */
 export const VerdictEventSchema = z.object({
   verdict_id: z.string(),
+  organization_id: z.string(),
   decision_id: z.string(),
   snapshot_id: z.string(),
   verdict: VerdictSchema,
@@ -82,8 +84,8 @@ export const VerdictEventSchema = z.object({
   timestamp: z.string().datetime(),
   spec_id: z.string(), // REQUIRED: Reference to DecisionSpec (RFC-002)
   spec_version: z.string(), // REQUIRED: Version of DecisionSpec (RFC-002)
-  scope_id: z.string(), // REQUIRED: Scope used for evaluation (RFC-002)
-  domain: z.string(), // REQUIRED: Domain for auditability (RFC-002)
+  scope_id: z.string().optional(), // REQUIRED: Scope used for evaluation (RFC-002)
+  domain_name: z.string(), // REQUIRED: Domain for auditability (RFC-002)
   owning_team: z.string().optional(), // Scope ownership (RFC-002)
 });
 export type VerdictEvent = z.infer<typeof VerdictEventSchema>;
@@ -96,6 +98,8 @@ export type VerdictEvent = z.infer<typeof VerdictEventSchema>;
  */
 export const TimelineEntrySchema = z.object({
   entry_id: z.string(),
+  organization_id: z.string(),
+  domain_name: z.string(),
   decision_id: z.string(),
   intent: z.string(),
   stage: StageSchema,
@@ -109,7 +113,6 @@ export const TimelineEntrySchema = z.object({
   timestamp: z.string().datetime(),
   spec_id: z.string().optional(), // REQUIRED for evaluated decisions (RFC-002)
   scope_id: z.string().optional(), // REQUIRED for evaluated decisions (RFC-002)
-  domain: z.string().optional(), // REQUIRED for auditability (RFC-002)
   owning_team: z.string().optional(), // Scope ownership for escalation (RFC-002)
 });
 export type TimelineEntry = z.infer<typeof TimelineEntrySchema>;
@@ -147,6 +150,7 @@ export type PolicyCondition = z.infer<typeof PolicyConditionSchema>;
 export const PolicySchema = z.object({
   id: z.string(),
   organization_id: z.string(),
+  domain_name: z.string(),
   name: z.string(),
   description: z.string(),
   scope: ScopeSchema,
@@ -212,7 +216,7 @@ export const DecisionSpecSchema = z.object({
   spec_id: z.string(),
   version: z.string(),
   organization_id: z.string(),
-  domain: z.string(),
+  domain_name: z.string(),
   intent: z.string(),
   stage: StageSchema,
   allowed_verdicts: z.array(VerdictSchema).readonly(),

@@ -54,14 +54,14 @@ export function matchesScope(decision: DecisionEvent, selector: Scope): ScopeMat
     return { matches: false, reason: 'organization_id mismatch' };
   }
 
-  if (!decision.scope.domain) {
-    return { matches: false, reason: 'decision scope missing domain' };
+  if (!decision.scope.domain_name) {
+    return { matches: false, reason: 'decision scope missing domain_name' };
   }
-  if (!selector.domain) {
-    return { matches: false, reason: 'selector missing domain' };
+  if (!selector.domain_name) {
+    return { matches: false, reason: 'selector missing domain_name' };
   }
-  if (decision.scope.domain !== selector.domain) {
-    return { matches: false, reason: 'domain mismatch' };
+  if (decision.scope.domain_name !== selector.domain_name) {
+    return { matches: false, reason: 'domain_name mismatch' };
   }
 
   for (const key of OPTIONAL_SCOPE_KEYS) {

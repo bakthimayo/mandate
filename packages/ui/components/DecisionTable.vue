@@ -16,6 +16,9 @@
             Stage
           </th>
           <th class="px-4 py-2 text-left font-semibold text-gray-900">
+            Spec ID
+          </th>
+          <th class="px-4 py-2 text-left font-semibold text-gray-900">
             Verdict
           </th>
           <th class="px-4 py-2 text-left font-semibold text-gray-900">
@@ -45,10 +48,13 @@
               {{ decision.stage }}
             </span>
           </td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-600 truncate">
+            {{ decision.spec_id.slice(0, 12) }}...
+          </td>
           <td class="px-4 py-3">
             <VerdictBadge :verdict="decision.verdict" />
           </td>
-          <td class="px-4 py-3 text-gray-700">{{ decision.domain }}</td>
+          <td class="px-4 py-3 text-gray-700">{{ decision.domain_name }}</td>
           <td class="px-4 py-3 text-gray-700">{{ decision.agent }}</td>
         </tr>
       </tbody>

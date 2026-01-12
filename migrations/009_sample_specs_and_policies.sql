@@ -1,23 +1,44 @@
 -- Mandate Control Plane - Sample Specs and Policies for Example Agents
--- Version: 006
--- Test data aligned to RFC-002: Spec-Aware Scope Isolation
+-- Version: 007
+-- Test data aligned to RFC-002 v1.2: domain_name (text slug) and scope_id (text with domain prefix)
 -- 
 -- This migration creates:
--- 1. DecisionSpecs for pre-commit-agent, pause-escalation-agent, and observe-agent
--- 2. Scopes for each agent with proper organizational binding
--- 3. Sample Policies that match specs and scopes
--- 4. Policy snapshot containing the sample policies
+-- 1. Domain record for config-management
+-- 2. DecisionSpecs for pre-commit-agent, pause-escalation-agent, and observe-agent
+-- 3. Scopes for each agent with proper organizational binding
+-- 4. Sample Policies that match specs and scopes
+-- 5. Policy snapshot containing the sample policies
 
 BEGIN;
 
 SET search_path TO mandate;
 
 -- =============================================================================
+-- ENSURE ORGANIZATION EXISTS
+-- =============================================================================
+-- Use fixed UUID for consistent test data
+INSERT INTO organizations (organization_id, name)
+VALUES ('550e8400-e29b-41d4-a716-446655440000'::UUID, 'example-org')
+ON CONFLICT DO NOTHING;
+
+-- =============================================================================
+-- ENSURE DOMAIN EXISTS
+-- =============================================================================
+-- RFC-002 v1.2: domain_name is TEXT slug, not UUID
+INSERT INTO domains (organization_id, domain_name, description)
+VALUES (
+  '550e8400-e29b-41d4-a716-446655440000'::UUID,
+  'config-management',
+  'Configuration management and deployment governance'
+)
+ON CONFLICT DO NOTHING;
+
+-- =============================================================================
 -- SAMPLE DECISION SPECS FOR EXAMPLE AGENTS
 -- =============================================================================
 
 -- Pre-Commit Agent: file.write at pre_commit stage
-INSERT INTO mandate_specs (spec_id, version, organization_id, domain, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
+INSERT INTO mandate_specs (spec_id, version, organization_id, domain_name, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
 VALUES (
   'spec-pre-commit-file-write-v1',
   '1',
@@ -58,10 +79,11 @@ VALUES (
   }'::JSONB,
   'active',
   now()
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Pause-Escalation Agent: database.drop_table at pre_commit stage
-INSERT INTO mandate_specs (spec_id, version, organization_id, domain, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
+INSERT INTO mandate_specs (spec_id, version, organization_id, domain_name, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
 VALUES (
   'spec-pre-commit-database-drop-table-v1',
   '1',
@@ -103,10 +125,11 @@ VALUES (
   }'::JSONB,
   'active',
   now()
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Observe-Only Agent: user.login at executed stage
-INSERT INTO mandate_specs (spec_id, version, organization_id, domain, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
+INSERT INTO mandate_specs (spec_id, version, organization_id, domain_name, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
 VALUES (
   'spec-executed-user-login-v1',
   '1',
@@ -139,10 +162,11 @@ VALUES (
   '{}'::JSONB,
   'active',
   now()
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Observe-Only Agent: data.export at executed stage
-INSERT INTO mandate_specs (spec_id, version, organization_id, domain, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
+INSERT INTO mandate_specs (spec_id, version, organization_id, domain_name, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
 VALUES (
   'spec-executed-data-export-v1',
   '1',
@@ -175,10 +199,11 @@ VALUES (
   '{}'::JSONB,
   'active',
   now()
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Observe-Only Agent: config.update at executed stage
-INSERT INTO mandate_specs (spec_id, version, organization_id, domain, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
+INSERT INTO mandate_specs (spec_id, version, organization_id, domain_name, intent, stage, allowed_verdicts, signals, enforcement, status, created_at)
 VALUES (
   'spec-executed-config-update-v1',
   '1',
@@ -210,90 +235,74 @@ VALUES (
   '{}'::JSONB,
   'active',
   now()
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- =============================================================================
 -- SAMPLE SCOPES FOR EXAMPLE AGENTS
 -- =============================================================================
 
+-- RFC-002 v1.2: scope_id is TEXT with domain_name prefix (format: domain_name.service.agent.system)
 -- Scope for pre-commit-agent (config-writer service at production)
 INSERT INTO scopes (
   scope_id,
-  scope_domain,
+  organization_id,
+  domain_name,
   service,
   agent,
-  environment,
-  organization_id,
-  domain_id,
-  owning_team,
-  owner_contact,
-  description
+  scope_system,
+  environment
 )
 VALUES (
-  '550e8400-e29b-41d4-a716-446655440100'::UUID,
+  'config-management.config-writer.pre-commit-agent.prod',
+  '550e8400-e29b-41d4-a716-446655440000'::UUID,
   'config-management',
   'config-writer',
   'pre-commit-agent',
-  'production',
-  '550e8400-e29b-41d4-a716-446655440000'::UUID,
-  '550e8400-e29b-41d4-a716-446655440001'::UUID,
-  'config-team',
-  'config-team@example.com',
-  'Scope for pre-commit file write agent (config-writer service)'
+  'prod',
+  'production'
 )
 ON CONFLICT DO NOTHING;
 
 -- Scope for pause-escalation-agent (db-admin-tool service at production)
 INSERT INTO scopes (
   scope_id,
-  scope_domain,
+  organization_id,
+  domain_name,
   service,
   agent,
-  environment,
-  organization_id,
-  domain_id,
-  owning_team,
-  owner_contact,
-  description
+  scope_system,
+  environment
 )
 VALUES (
-  '550e8400-e29b-41d4-a716-446655440101'::UUID,
+  'config-management.db-admin-tool.pause-escalation-agent.prod',
+  '550e8400-e29b-41d4-a716-446655440000'::UUID,
   'config-management',
   'db-admin-tool',
   'pause-escalation-agent',
-  'production',
-  '550e8400-e29b-41d4-a716-446655440000'::UUID,
-  '550e8400-e29b-41d4-a716-446655440001'::UUID,
-  'dba-team',
-  'dba-team@example.com',
-  'Scope for pause-escalation agent (db-admin-tool service)'
+  'prod',
+  'production'
 )
 ON CONFLICT DO NOTHING;
 
 -- Scope for observe-agent (audit-logger service at production)
 INSERT INTO scopes (
   scope_id,
-  scope_domain,
+  organization_id,
+  domain_name,
   service,
   agent,
-  environment,
-  organization_id,
-  domain_id,
-  owning_team,
-  owner_contact,
-  description
+  scope_system,
+  environment
 )
 VALUES (
-  '550e8400-e29b-41d4-a716-446655440102'::UUID,
+  'config-management.audit-logger.observe-agent.prod',
+  '550e8400-e29b-41d4-a716-446655440000'::UUID,
   'config-management',
   'audit-logger',
   'observe-agent',
-  'production',
-  '550e8400-e29b-41d4-a716-446655440000'::UUID,
-  '550e8400-e29b-41d4-a716-446655440001'::UUID,
-  'audit-team',
-  'audit-team@example.com',
-  'Scope for observe-only agent (audit-logger service)'
+  'prod',
+  'production'
 )
 ON CONFLICT DO NOTHING;
 
@@ -304,23 +313,25 @@ ON CONFLICT DO NOTHING;
 -- getLatestPolicySnapshot returns only one snapshot per org/domain, so all 
 -- policies must be in the same snapshot to be available for evaluation.
 
-INSERT INTO policy_snapshots (snapshot_id, version, policies, organization_id, domain_id, created_at)
-SELECT 
+INSERT INTO policy_snapshots (snapshot_id, version, policies, organization_id, domain_name, created_at)
+VALUES (
   '550e8400-e29b-41d4-a716-446655440200'::UUID,
   1,
   '[
     {
       "id": "policy-allow-small-files-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Allow small file writes",
       "description": "Allow writing files under 1MB to production config",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "config-writer",
         "agent": "pre-commit-agent",
         "environment": "production"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440100",
+      "scope_id": "config-management.config-writer.pre-commit-agent.prod",
       "conditions": [
         {
           "field": "content_length",
@@ -339,15 +350,17 @@ SELECT
     {
       "id": "policy-pause-large-files-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Pause large file writes",
       "description": "Require review for files over 1MB",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "config-writer",
         "agent": "pre-commit-agent",
         "environment": "production"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440100",
+      "scope_id": "config-management.config-writer.pre-commit-agent.prod",
       "conditions": [
         {
           "field": "content_length",
@@ -361,15 +374,17 @@ SELECT
     {
       "id": "policy-block-unbackedup-drops-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Block drops without backup",
       "description": "Block database drop_table if backup was not taken first",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "db-admin-tool",
         "agent": "pause-escalation-agent",
         "environment": "production"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440101",
+      "scope_id": "config-management.db-admin-tool.pause-escalation-agent.prod",
       "conditions": [
         {
           "field": "backup_first",
@@ -383,15 +398,17 @@ SELECT
     {
       "id": "policy-pause-critical-db-ops-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Pause critical database operations",
       "description": "Require DBA approval for critical-level operations",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "db-admin-tool",
         "agent": "pause-escalation-agent",
         "environment": "production"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440101",
+      "scope_id": "config-management.db-admin-tool.pause-escalation-agent.prod",
       "conditions": [
         {
           "field": "risk_level",
@@ -405,15 +422,17 @@ SELECT
     {
       "id": "policy-allow-low-risk-drops-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Allow low-risk drops",
       "description": "Allow drop_table for low-risk, reversible operations",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "db-admin-tool",
         "agent": "pause-escalation-agent",
         "environment": "production"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440101",
+      "scope_id": "config-management.db-admin-tool.pause-escalation-agent.prod",
       "conditions": [
         {
           "field": "risk_level",
@@ -432,14 +451,16 @@ SELECT
     {
       "id": "policy-observe-user-login-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Observe user logins",
       "description": "Log all user login attempts for audit trail",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "audit-logger",
         "agent": "observe-agent"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440102",
+      "scope_id": "config-management.audit-logger.observe-agent.prod",
       "conditions": [
         {
           "field": "auth_method",
@@ -453,14 +474,16 @@ SELECT
     {
       "id": "policy-observe-data-exports-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Observe data exports",
       "description": "Log all data export operations including PII exports",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "audit-logger",
         "agent": "observe-agent"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440102",
+      "scope_id": "config-management.audit-logger.observe-agent.prod",
       "conditions": [
         {
           "field": "format",
@@ -474,24 +497,25 @@ SELECT
     {
       "id": "policy-observe-config-updates-v1",
       "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+      "domain_name": "config-management",
       "name": "Observe config updates",
       "description": "Log all configuration changes for audit trail",
       "scope": {
-        "domain": "config-management",
+        "organization_id": "550e8400-e29b-41d4-a716-446655440000",
+        "domain_name": "config-management",
         "service": "audit-logger",
         "agent": "observe-agent"
       },
-      "scope_id": "550e8400-e29b-41d4-a716-446655440102",
+      "scope_id": "config-management.audit-logger.observe-agent.prod",
       "conditions": [],
       "verdict": "OBSERVE",
       "spec_id": "spec-executed-config-update-v1"
     }
   ]'::JSONB,
   '550e8400-e29b-41d4-a716-446655440000'::UUID,
-  '550e8400-e29b-41d4-a716-446655440001'::UUID,
+  'config-management',
   now()
-WHERE NOT EXISTS (
-  SELECT 1 FROM policy_snapshots WHERE snapshot_id = '550e8400-e29b-41d4-a716-446655440200'::UUID
-);
+)
+ON CONFLICT DO NOTHING;
 
 COMMIT;

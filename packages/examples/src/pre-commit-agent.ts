@@ -5,9 +5,10 @@
  * BEFORE performing any action. The agent MUST respect the verdict and
  * NOT bypass it under any circumstances.
  *
- * RFC-002 Compliance:
- * - organization_id is explicitly provided (required)
- * - scope.domain is explicitly provided (required)
+ * RFC-002 v1.2 Compliance:
+ * - organization_id is explicitly provided (required, top-level)
+ * - domain_name is explicitly provided (required, top-level)
+ * - scope includes organization_id and domain_name (required)
  * - No inference or defaults - caller provides full attribution
  *
  * Key principles:
@@ -118,16 +119,18 @@ async function preCommitAgent(): Promise<void> {
 
   const response = await client.requestDecision({
     organization_id: ORGANIZATION_ID,
+    domain_name: DOMAIN,
     intent: 'file.write',
     stage: 'pre_commit',
     actor: 'pre-commit-agent',
     target: action.path,
     context: {
-      content_length: 1000000000,
+      content_length: 2500000,
       content_type: 'yaml',
     },
     scope: {
-      domain: DOMAIN,
+      organization_id: ORGANIZATION_ID,
+      domain_name: DOMAIN,
       service: 'config-writer',
       agent: 'pre-commit-agent',
       environment: 'production',

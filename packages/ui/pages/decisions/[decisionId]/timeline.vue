@@ -14,7 +14,7 @@
           path: `/decisions/${decisionId}`,
           query: { 
             organization_id: route.query.organization_id,
-            domain: route.query.domain
+            domain_name: route.query.domain_name
           }
         }"
         class="text-blue-600 hover:underline text-sm font-medium"
@@ -49,26 +49,47 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p class="text-xs text-gray-600 font-medium mb-1">DECISION ID</p>
-            <p class="audit-text-mono text-sm">
-              {{ decisionId }}
+            <p class="audit-text-mono text-xs">
+              {{ decisionId || '—' }}
             </p>
           </div>
           <div>
             <p class="text-xs text-gray-600 font-medium mb-1">INTENT</p>
             <p class="text-sm text-gray-900">
-              {{ timeline.decision_event.intent }}
+              {{ timeline.decision_event?.intent || '—' }}
             </p>
           </div>
           <div>
             <p class="text-xs text-gray-600 font-medium mb-1">STAGE</p>
             <p class="text-sm text-gray-900">
-              {{ timeline.decision_event.stage }}
+              {{ timeline.decision_event?.stage || '—' }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">SPEC ID</p>
+            <p class="audit-text-mono text-xs">
+              {{ timeline.decision_event?.spec_id?.slice(0, 12) || '—' }}...
+            </p>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">DOMAIN</p>
+            <p class="text-sm text-gray-900">
+              {{ timeline.decision_event?.domain_name || '—' }}
             </p>
           </div>
           <div>
             <p class="text-xs text-gray-600 font-medium mb-1">INITIATED</p>
-            <p class="text-sm text-gray-500">
-              {{ formatTimestamp(timeline.decision_event.timestamp) }}
+            <p class="text-xs text-gray-500">
+              {{ formatTimestamp(timeline.decision_event?.timestamp || '') }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 font-medium mb-1">ORGANIZATION</p>
+            <p class="audit-text-mono text-xs">
+              {{ timeline.decision_event?.organization_id?.slice(0, 12) || '—' }}...
             </p>
           </div>
         </div>
@@ -252,7 +273,7 @@ const decisionId = computed(() => route.params.decisionId as string);
 const organizationId = computed(
   () => (route.query.organization_id as string) || ""
 );
-const domain = computed(() => (route.query.domain as string) || "");
+const domain_name = computed(() => (route.query.domain_name as string) || "");
 
 const loadTimeline = async () => {
   if (!decisionId.value) return;
@@ -264,7 +285,7 @@ const loadTimeline = async () => {
     const result = await fetchDecisionTimeline(
       decisionId.value,
       organizationId.value || undefined,
-      domain.value || undefined
+      domain_name.value || undefined
     );
 
     if (result.error) {
@@ -349,7 +370,7 @@ onMounted(() => {
   loadTimeline();
 });
 
-watch(decisionId, () => {
+watch([decisionId, organizationId, domain_name], () => {
   loadTimeline();
 });
 </script>

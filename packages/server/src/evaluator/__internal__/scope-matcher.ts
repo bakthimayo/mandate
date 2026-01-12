@@ -21,7 +21,7 @@ import type { Policy, Scope } from '@mandate/shared';
  */
 export function scopeMatches(policyScope: Scope, decisionScope: Scope): boolean {
   // Domain MUST match exactly (already verified at evaluator level)
-  if (policyScope.domain !== decisionScope.domain) {
+  if (policyScope.domain_name !== decisionScope.domain_name) {
     return false;
   }
 

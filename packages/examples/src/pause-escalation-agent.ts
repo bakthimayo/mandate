@@ -6,9 +6,10 @@
  * - Polling for resolution (human approval/rejection)
  * - Respecting the final verdict after escalation
  *
- * RFC-002 Compliance:
- * - organization_id is explicitly provided (required)
- * - scope.domain is explicitly provided (required)
+ * RFC-002 v1.2 Compliance:
+ * - organization_id is explicitly provided (required, top-level)
+ * - domain_name is explicitly provided (required, top-level)
+ * - scope includes organization_id and domain_name (required)
  * - No inference or defaults - caller provides full attribution
  *
  * Key principles:
@@ -164,6 +165,7 @@ async function pauseEscalationAgent(): Promise<void> {
 
   const response = await client.requestDecision({
     organization_id: ORGANIZATION_ID,
+    domain_name: DOMAIN,
     intent: action.type,
     stage: 'pre_commit',
     actor: 'pause-escalation-agent',
@@ -174,7 +176,8 @@ async function pauseEscalationAgent(): Promise<void> {
       reversible: false,
     },
     scope: {
-      domain: DOMAIN,
+      organization_id: ORGANIZATION_ID,
+      domain_name: DOMAIN,
       service: 'db-admin-tool',
       agent: 'pause-escalation-agent',
       environment: 'production',

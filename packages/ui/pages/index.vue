@@ -76,7 +76,7 @@ const applyFilters = async (filters: any) => {
 
    const params: any = {
      organizationId: filters.organizationId,
-     domain: filters.domain
+     domain_name: filters.domain
    }
    if (filters.startTime && filters.endTime) {
      params.timeRange = {
@@ -98,11 +98,11 @@ const applyFilters = async (filters: any) => {
 }
 
 const navigateToDecision = (decision: DecisionListItem) => {
-  navigateTo({
-    path: `/decisions/${decision.id}`,
-    query: { organization_id: decision.organization_id, domain: decision.domain }
-  })
-}
+   navigateTo({
+     path: `/decisions/${decision.id}`,
+     query: { organization_id: decision.organization_id, domain_name: decision.domain_name }
+   })
+ }
 
 // Restore filters on mount
 onMounted(() => {

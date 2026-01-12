@@ -1,7 +1,7 @@
 /**
  * Policy Snapshot Repository - RFC-002 Isolation Enforced
  *
- * All queries enforce organization_id and domain_id boundaries.
+ * All queries enforce organization_id and domain_name boundaries.
  * No implicit cross-domain policy aggregation.
  */
 
@@ -27,12 +27,12 @@ export async function getLatestPolicySnapshot(
     created_at: Date;
   }>(
     `SELECT snapshot_id, version, policies, created_at 
-     FROM mandate.policy_snapshots 
-     WHERE organization_id = $1
-       AND domain_id = $2
-     ORDER BY created_at DESC 
-     LIMIT 1`,
-    [ctx.organization_id, ctx.domain_id]
+      FROM mandate.policy_snapshots 
+      WHERE organization_id = $1
+        AND domain_name = $2
+      ORDER BY created_at DESC 
+      LIMIT 1`,
+    [ctx.organization_id, ctx.domain_name]
   );
 
   if (result.rows.length === 0) {
@@ -66,11 +66,11 @@ export async function getPolicySnapshotById(
     created_at: Date;
   }>(
     `SELECT snapshot_id, version, policies, created_at 
-     FROM mandate.policy_snapshots 
-     WHERE snapshot_id = $1
-       AND organization_id = $2
-       AND domain_id = $3`,
-    [snapshot_id, ctx.organization_id, ctx.domain_id]
+      FROM mandate.policy_snapshots 
+      WHERE snapshot_id = $1
+        AND organization_id = $2
+        AND domain_name = $3`,
+    [snapshot_id, ctx.organization_id, ctx.domain_name]
   );
 
   if (result.rows.length === 0) {
@@ -107,12 +107,12 @@ export async function listPolicySnapshots(
     created_at: Date;
   }>(
     `SELECT snapshot_id, version, policies, created_at 
-     FROM mandate.policy_snapshots 
-     WHERE organization_id = $1
-       AND domain_id = $2
-     ORDER BY created_at DESC
-     LIMIT $3 OFFSET $4`,
-    [ctx.organization_id, ctx.domain_id, limit, offset]
+      FROM mandate.policy_snapshots 
+      WHERE organization_id = $1
+        AND domain_name = $2
+      ORDER BY created_at DESC
+      LIMIT $3 OFFSET $4`,
+    [ctx.organization_id, ctx.domain_name, limit, offset]
   );
 
   return result.rows.map((row) => ({

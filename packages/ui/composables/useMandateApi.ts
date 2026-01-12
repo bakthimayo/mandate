@@ -37,7 +37,7 @@ export const useMandateApi = () => {
     intent?: string
     agent?: string
     organizationId?: string
-    domain?: string
+    domain_name?: string
   }): Promise<ApiState<DecisionListItem[]>> => {
     const state: ApiState<DecisionListItem[]> = {
       data: null,
@@ -57,7 +57,7 @@ export const useMandateApi = () => {
         if (params.agent) url.searchParams.append('agent', params.agent)
         if (params.organizationId)
           url.searchParams.append('organization_id', params.organizationId)
-        if (params.domain) url.searchParams.append('domain', params.domain)
+        if (params.domain_name) url.searchParams.append('domain_name', params.domain_name)
       }
 
       const response = await fetch(url.toString())
@@ -80,9 +80,10 @@ export const useMandateApi = () => {
         verdict: d.verdict || 'OBSERVE',
         agent: d.actor || d.scope?.service || '',
         target: d.target || '',
+        spec_id: d.spec_id || '',
         policy_snapshot_id: d.policy_snapshot_id || '',
         organization_id: d.organization_id,
-        domain: d.scope?.domain || d.domain || ''
+        domain_name: d.scope?.domain_name || d.domain_name || ''
       }))
     } catch (err) {
       state.error = {
@@ -102,8 +103,8 @@ export const useMandateApi = () => {
    */
   const fetchDomains = async (
     organizationId: string
-  ): Promise<ApiState<{ domain_id: string; name: string }[]>> => {
-    const state: ApiState<{ domain_id: string; name: string }[]> = {
+  ): Promise<ApiState<{ domain_name: string }[]>> => {
+    const state: ApiState<{ domain_name: string }[]> = {
       data: null,
       loading: true,
       error: null
@@ -138,12 +139,12 @@ export const useMandateApi = () => {
 
   /**
    * Fetch full decision timeline
-   * GET /api/v1/decisions/:decisionId/timeline?organization_id=...&domain=...
+   * GET /api/v1/decisions/:decisionId/timeline?organization_id=...&domain_name=...
    */
   const fetchDecisionTimeline = async (
     decisionId: string,
     organizationId?: string,
-    domain?: string
+    domain_name?: string
   ): Promise<ApiState<DecisionTimeline>> => {
     const state: ApiState<DecisionTimeline> = {
       data: null,
@@ -156,8 +157,8 @@ export const useMandateApi = () => {
       if (organizationId) {
         url.searchParams.append('organization_id', organizationId)
       }
-      if (domain) {
-        url.searchParams.append('domain', domain)
+      if (domain_name) {
+        url.searchParams.append('domain_name', domain_name)
       }
 
       const response = await fetch(url.toString())
