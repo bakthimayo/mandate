@@ -16,6 +16,9 @@ import { getPool } from '../db/connection.js';
 
 interface FetchSpecParams {
   spec_id: string;
+}
+
+interface FetchSpecQuery {
   version: string;
 }
 
@@ -28,12 +31,13 @@ export async function specsRoutes(fastify: FastifyInstance): Promise<void> {
    * Fetch a specific spec by spec_id and version.
    */
   fastify.get(
-    '/api/v1/specs/:spec_id/:version',
+    '/api/v1/specs/:spec_id',
     async (
-      request: FastifyRequest<{ Params: FetchSpecParams }>,
+      request: FastifyRequest<{ Params: FetchSpecParams; Querystring: FetchSpecQuery }>,
       reply: FastifyReply
     ): Promise<{ spec: DecisionSpec } | { error: string }> => {
-      const { spec_id, version } = request.params;
+      const { spec_id } = request.params;
+      const { version } = request.query;
 
       if (!spec_id || !version) {
         return reply.status(400).send({

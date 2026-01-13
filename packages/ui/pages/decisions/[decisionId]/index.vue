@@ -39,9 +39,14 @@
            </div>
            <div class="col-span-3">
              <p class="text-xs text-gray-600 font-medium mb-1">SPEC ID</p>
-             <p class="audit-text-mono text-xs">
+             <button
+               v-if="timeline.verdict?.spec_id"
+               @click="openSpecPanel"
+               class="audit-text-mono text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
+             >
                {{ timeline.verdict?.spec_id || '—' }}
-             </p>
+             </button>
+             <p v-else class="audit-text-mono text-xs">—</p>
            </div>
           <div v-if="timeline.verdict" class="col-span-2">
             <p class="text-xs text-gray-600 font-medium mb-1">VERDICT</p>
@@ -77,6 +82,14 @@
     <div v-else class="audit-panel text-center py-8">
       <p class="text-gray-600">Decision not found.</p>
     </div>
+
+    <!-- Spec Details Panel -->
+    <SpecPanel
+      :is-open="showSpecPanel"
+      :spec-id="selectedSpecId"
+      :version="selectedSpecVersion"
+      @close="showSpecPanel = false"
+    />
   </div>
 </template>
 
@@ -95,6 +108,10 @@ const loading = ref(false);
 const error = ref<{ message: string } | null>(null);
 const loadedDecisionId = ref<string>("");
 let isLoading = false;
+
+const showSpecPanel = ref(false);
+const selectedSpecId = ref<string>("");
+const selectedSpecVersion = ref<string>("");
 
 const decisionId = computed(() => route.params.decisionId as string);
 const organizationId = computed(
@@ -137,6 +154,14 @@ const loadTimeline = async () => {
 onMounted(() => {
   loadTimeline();
 });
+
+const openSpecPanel = () => {
+  if (timeline.value?.verdict) {
+    selectedSpecId.value = timeline.value.verdict.spec_id;
+    selectedSpecVersion.value = timeline.value.verdict.spec_version.toString();
+    showSpecPanel.value = true;
+  }
+};
 
 watch(
   [decisionId, organizationId, domain_name],

@@ -4,10 +4,11 @@
  */
 
 import type {
-  DecisionListItem,
-  DecisionTimeline,
-  ApiError
-} from '~/types/mandate'
+   DecisionListItem,
+   DecisionTimeline,
+   ApiError,
+   SpecDefinition
+ } from '~/types/mandate'
 
 interface ApiState<T> {
   data: T | null
@@ -183,9 +184,67 @@ export const useMandateApi = () => {
     return state
   }
 
+  /**
+    * Fetch spec details by spec_id and version
+    * GET /api/v1/specs/:spec_id?version=...
+    */
+  const fetchSpec = async (
+    specId: string,
+    version: string
+  ): Promise<ApiState<SpecDefinition>> => {
+    const state: ApiState<SpecDefinition> = {
+      data: null,
+      loading: true,
+      error: null
+    }
+
+    try {
+      const url = new URL(`${apiBase}/specs/${specId}`)
+      url.searchParams.append('version', version)
+      const response = await fetch(url.toString())
+      
+      if (!response.ok) {
+        state.error = {
+          code: 'FETCH_ERROR',
+          message: `Failed to fetch spec: ${response.statusText}`
+        }
+        return state
+      }
+
+      const json = await response.json()
+      const spec = json.spec || json
+      
+      // Transform server response to match SpecDefinition type
+      state.data = {
+        spec_id: spec.spec_id,
+        intent: spec.intent,
+        stage: spec.stage,
+        version: spec.version,
+        domain_name: spec.domain_name,
+        allowed_verdicts: spec.allowed_verdicts,
+        signals: spec.signals || [],
+        signals_declared: spec.signals ? 
+          spec.signals.reduce((acc: Record<string, string>, s: any) => {
+            acc[s.name] = s.type
+            return acc
+          }, {}) : {}
+      }
+    } catch (err) {
+      state.error = {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Unknown error'
+      }
+    } finally {
+      state.loading = false
+    }
+
+    return state
+  }
+
   return {
     fetchDecisions,
     fetchDomains,
-    fetchDecisionTimeline
+    fetchDecisionTimeline,
+    fetchSpec
   }
 }

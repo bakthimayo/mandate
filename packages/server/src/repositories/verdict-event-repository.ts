@@ -45,8 +45,8 @@ export async function insertVerdictEvent(
   const pool = getPool();
   await pool.query(
     `INSERT INTO mandate.verdict_events 
-      (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      (verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, spec_version, scope_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       event.verdict_id,
       event.decision_id,
@@ -57,6 +57,7 @@ export async function insertVerdictEvent(
       ctx.organization_id,
       ctx.domain_name,
       event.spec_id,
+      event.spec_version,
       event.scope_id,
     ]
   );
@@ -84,9 +85,10 @@ export async function getVerdictEventById(
     organization_id: string;
     domain_name: string;
     spec_id: string;
+    spec_version: string | null;
     scope_id: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, spec_version, scope_id
       FROM mandate.verdict_events
       WHERE verdict_id = $1
         AND organization_id = $2
@@ -108,7 +110,7 @@ export async function getVerdictEventById(
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    spec_version: row.spec_version || 'v1',
     domain_name: row.domain_name,
     scope_id: row.scope_id,
   };
@@ -136,9 +138,10 @@ export async function getVerdictEventById(
     organization_id: string;
     domain_name: string;
     spec_id: string;
+    spec_version: string | null;
     scope_id: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, spec_version, scope_id
       FROM mandate.verdict_events
       WHERE decision_id = $1
         AND organization_id = $2
@@ -162,7 +165,7 @@ export async function getVerdictEventById(
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    spec_version: row.spec_version || 'v1',
     domain_name: row.domain_name,
     scope_id: row.scope_id,
   };
@@ -193,9 +196,10 @@ export async function listVerdictEvents(
     organization_id: string;
     domain_name: string;
     spec_id: string;
+    spec_version: string | null;
     scope_id: string;
   }>(
-    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, scope_id
+    `SELECT verdict_id, decision_id, snapshot_id, verdict, matched_policy_ids, timestamp, organization_id, domain_name, spec_id, spec_version, scope_id
       FROM mandate.verdict_events
       WHERE organization_id = $1
         AND domain_name = $2
@@ -213,7 +217,7 @@ export async function listVerdictEvents(
     matched_policy_ids: row.matched_policy_ids,
     timestamp: row.timestamp.toISOString(),
     spec_id: row.spec_id,
-    spec_version: 'v1', // TODO: Fetch actual spec version from database
+    spec_version: row.spec_version || 'v1',
     domain_name: row.domain_name,
     scope_id: row.scope_id,
   }));

@@ -33,13 +33,23 @@ export interface PolicyDefinition {
   explanation?: string;
 }
 
+export interface SignalDefinition {
+  name: string;
+  type: string;
+  source: string;
+  required: boolean;
+  description: string;
+  values?: string[];
+}
+
 export interface SpecDefinition {
   spec_id: string;
   intent: string;
   stage: DecisionStage;
-  version: number;
+  version: string;
   domain_name: string;
-  allowed_verdicts: Verdict[];
+  allowed_verdicts: string | Verdict[];
+  signals?: SignalDefinition[];
   signals_declared?: Record<string, string>;
 }
 
