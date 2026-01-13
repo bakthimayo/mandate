@@ -110,15 +110,23 @@
         />
       </div>
 
-      <!-- Apply Filters Button -->
-      <button
-        @click="applyFilters"
-        :disabled="!canApply"
-        class="w-full px-4 py-2 rounded-md text-sm font-medium transition"
-        :class="canApply ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
-      >
-        Apply Filters
-      </button>
+      <!-- Apply Filters & Clear Buttons -->
+      <div class="space-y-2">
+        <button
+          @click="applyFilters"
+          :disabled="!canApply"
+          class="w-full px-4 py-2 rounded-md text-sm font-medium transition"
+          :class="canApply ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+        >
+          Apply Filters
+        </button>
+        <button
+          @click="clearFilters"
+          class="w-full px-4 py-2 rounded-md text-sm font-medium transition bg-gray-200 text-gray-700 hover:bg-gray-300"
+        >
+          Clear Filters
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -171,6 +179,15 @@ const canApply = computed(() => {
 const applyFilters = () => {
   if (!canApply.value) return
   emit('apply-filters', { ...filters, organizationId })
+}
+
+const clearFilters = () => {
+  filters.startTime = ''
+  filters.endTime = ''
+  filters.verdict = ''
+  filters.intent = ''
+  filters.agent = ''
+  filters.domain = ''
 }
 
 onMounted(async () => {
