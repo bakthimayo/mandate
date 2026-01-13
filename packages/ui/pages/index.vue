@@ -1,22 +1,14 @@
 <template>
   <div class="space-y-6">
-    <!-- Page Title -->
-    <div>
-      <h1 class="text-3xl font-bold text-gray-900">Decisions</h1>
-      <p class="text-gray-600 mt-1">
-        Browse and filter all governance decisions
-      </p>
-    </div>
-
     <!-- Layout: Filters + Table -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
       <!-- Filters Panel -->
       <div class="lg:col-span-1">
         <DecisionFilters @apply-filters="applyFilters" />
       </div>
 
       <!-- Results Panel -->
-      <div class="lg:col-span-3">
+      <div class="lg:col-span-4">
         <!-- Loading State -->
         <div v-if="loading" class="audit-panel text-center py-8">
           <p class="text-gray-600">Loading decisions...</p>

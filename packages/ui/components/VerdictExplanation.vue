@@ -1,9 +1,5 @@
 <template>
   <div class="audit-panel">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-      Verdict Explanation
-    </h2>
-
     <div class="space-y-4">
       <!-- Verdict Badge -->
       <div>

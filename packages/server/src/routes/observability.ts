@@ -11,6 +11,7 @@ import { createIsolationContext } from '../repositories/isolation-context.js';
 import {
   getDecisionEventById,
   listDecisionEvents,
+  listDecisionEventsWithVerdicts,
 } from '../repositories/decision-event-repository.js';
 import {
   getVerdictEventByDecisionId,
@@ -31,6 +32,8 @@ interface ListDecisionsQuery {
   verdict?: string;
   intent?: string;
   agent?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 interface DecisionQuery {
@@ -105,37 +108,40 @@ export async function observabilityRoutes(
       }>,
       reply: FastifyReply
     ) => {
-      const { organization_id, domain_name, limit, offset } = request.query;
+      const { organization_id, domain_name, limit, offset, verdict, startTime, endTime } = request.query;
 
-      if (!organization_id) {
-        return reply.status(400).send({
-          error: 'organization_id query parameter is required',
-        });
-      }
-      if (!domain_name) {
-        return reply.status(400).send({
-          error: 'domain_name query parameter is required',
-        });
-      }
+       if (!organization_id) {
+         return reply.status(400).send({
+           error: 'organization_id query parameter is required',
+         });
+       }
+       if (!domain_name) {
+         return reply.status(400).send({
+           error: 'domain_name query parameter is required',
+         });
+       }
 
-      const exists = await domainExists(organization_id, domain_name);
-      if (!exists) {
-        return reply.status(404).send({
-          error: 'Domain not found',
-        });
-      }
+       const exists = await domainExists(organization_id, domain_name);
+       if (!exists) {
+         return reply.status(404).send({
+           error: 'Domain not found',
+         });
+       }
 
-      const ctx = createIsolationContext(organization_id, domain_name);
+       const ctx = createIsolationContext(organization_id, domain_name);
 
-      try {
-        const decisions = await listDecisionEvents(ctx, {
-          limit: limit ? parseInt(limit, 10) : 100,
-          offset: offset ? parseInt(offset, 10) : 0,
-        });
+       try {
+         const decisions = await listDecisionEventsWithVerdicts(ctx, {
+           limit: limit ? parseInt(limit, 10) : 100,
+           offset: offset ? parseInt(offset, 10) : 0,
+           verdict: verdict,
+           startTime: startTime ? new Date(startTime) : undefined,
+           endTime: endTime ? new Date(endTime) : undefined,
+         });
 
-        return {
-          decisions,
-        };
+         return {
+           decisions,
+         };
       } catch (err) {
         return reply.status(500).send({
           error: 'Failed to fetch decisions',

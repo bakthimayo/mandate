@@ -8,19 +8,6 @@
       >
         ← Back to Decisions
       </NuxtLink>
-      <span class="text-gray-400">|</span>
-      <NuxtLink
-        :to="{
-          path: `/decisions/${route.params.decisionId}/timeline`,
-          query: {
-            organization_id: route.query.organization_id,
-            domain_name: route.query.domain_name,
-          },
-        }"
-        class="text-blue-600 hover:underline text-sm font-medium"
-      >
-        Full Timeline
-      </NuxtLink>
     </div>
 
     <!-- Loading State -->
@@ -36,57 +23,42 @@
     <!-- Decision Timeline -->
     <div v-else-if="timeline">
       <!-- Decision Summary -->
-      <div class="audit-panel">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-             <p class="text-xs text-gray-600 font-medium mb-1">DECISION ID</p>
-             <p class="audit-text-mono text-xs">
-               {{ timeline.decision_id?.slice(0, 12) || '—' }}...
-             </p>
-           </div>
-           <div>
+      <div class="audit-panel mb-6">
+        <div class="grid grid-cols-12 gap-4">
+           <div class="col-span-2">
              <p class="text-xs text-gray-600 font-medium mb-1">INTENT</p>
              <p class="text-sm text-gray-900">
                {{ timeline.decision_event?.intent || '—' }}
              </p>
            </div>
-           <div>
+           <div class="col-span-2">
              <p class="text-xs text-gray-600 font-medium mb-1">STAGE</p>
              <p class="text-sm text-gray-900">
                {{ timeline.decision_event?.stage || '—' }}
              </p>
            </div>
-           <div>
+           <div class="col-span-3">
              <p class="text-xs text-gray-600 font-medium mb-1">SPEC ID</p>
              <p class="audit-text-mono text-xs">
-               {{ timeline.decision_event?.spec_id?.slice(0, 12) || '—' }}...
+               {{ timeline.verdict?.spec_id || '—' }}
              </p>
            </div>
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
-          <div>
-            <p class="text-xs text-gray-600 font-medium mb-1">DOMAIN</p>
-            <p class="text-sm text-gray-900">
-              {{ timeline.decision_event?.domain_name || '—' }}
-            </p>
-          </div>
-          <div v-if="timeline.verdict">
+          <div v-if="timeline.verdict" class="col-span-2">
             <p class="text-xs text-gray-600 font-medium mb-1">VERDICT</p>
             <VerdictBadge :verdict="timeline.verdict.verdict" />
           </div>
-          <div v-if="timeline.verdict?.scope_id">
+          <div v-if="timeline.verdict?.scope_id" class="col-span-3">
             <p class="text-xs text-gray-600 font-medium mb-1">SCOPE ID</p>
             <p class="audit-text-mono text-xs">
-              {{ timeline.verdict.scope_id.slice(0, 12) }}...
+              {{ timeline.verdict.scope_id }}
             </p>
           </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Timeline -->
-        <div class="lg:col-span-2 space-y-2">
+        <div class="lg:col-span-1 space-y-2">
           <h2 class="text-lg font-semibold text-gray-900">Timeline</h2>
           <div v-for="entry in timeline.timeline" :key="entry.id">
             <TimelineEntry :entry="entry" />
@@ -94,7 +66,8 @@
         </div>
 
         <!-- Verdict Explanation -->
-        <div v-if="timeline.verdict" class="lg:col-span-1">
+        <div v-if="timeline.verdict" class="lg:col-span-1 space-y-2">
+          <h2 class="text-lg font-semibold text-gray-900">Verdict Explanation</h2>
           <VerdictExplanation :verdict="timeline.verdict" />
         </div>
       </div>
