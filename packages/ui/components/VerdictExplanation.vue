@@ -137,13 +137,14 @@
         </h3>
 
         <div class="space-y-1">
-          <div
+          <button
             v-for="policyId in verdict.matched_policy_ids"
             :key="policyId"
-            class="text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded font-mono"
+            @click="openPolicyPanel(policyId)"
+            class="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded font-mono w-full text-left"
           >
             {{ policyId }}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -151,22 +152,11 @@
       <div class="border-t pt-4">
         <p class="text-xs text-gray-600 font-medium mb-1">POLICY SNAPSHOT ID</p>
         <p class="audit-text-mono text-xs text-gray-700">
-          {{ verdict.policy_snapshot_id }}
+          {{ verdict.snapshot_id }}
         </p>
       </div>
 
-      <!-- Explanation Text -->
-      <div class="border-t pt-4">
-        <p class="text-xs text-gray-600 font-medium mb-2">EXPLANATION</p>
-        <div class="bg-gray-50 border border-gray-200 rounded p-3">
-          <p class="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap">
-            {{ verdict.explanation }}
-          </p>
-          <p v-if="!verdict.explanation" class="text-sm text-gray-500 italic">
-            No explanation provided
-          </p>
-        </div>
-      </div>
+
 
       <!-- Authority & Source -->
       <div class="grid grid-cols-2 gap-3 text-xs border-t pt-4">
@@ -207,6 +197,16 @@
       </div>
     </div>
   </div>
+
+  <!-- Policy Details Panel -->
+  <PolicyPanel
+    :is-open="showPolicyPanel"
+    :policy-id="selectedPolicyId"
+    :snapshot-id="verdict.snapshot_id"
+    :organization-id="verdict.organization_id"
+    :domain-name="verdict.domain_name"
+    @close="showPolicyPanel = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -216,7 +216,10 @@ interface Props {
   verdict: VerdictEvent;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const showPolicyPanel = ref(false);
+const selectedPolicyId = ref<string | undefined>(undefined);
 
 const formatTimestamp = (timestamp: string): string => {
   try {
@@ -240,5 +243,10 @@ const getPrecedenceLabel = (order: number): string => {
   if (order <= 3) return "high priority";
   if (order <= 10) return "medium priority";
   return "lower priority";
+};
+
+const openPolicyPanel = (policyId: string) => {
+  selectedPolicyId.value = policyId;
+  showPolicyPanel.value = true;
 };
 </script>

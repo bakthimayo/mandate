@@ -7,7 +7,8 @@ import type {
    DecisionListItem,
    DecisionTimeline,
    ApiError,
-   SpecDefinition
+   SpecDefinition,
+   PolicyDefinition
  } from '~/types/mandate'
 
 interface ApiState<T> {
@@ -241,10 +242,119 @@ export const useMandateApi = () => {
     return state
   }
 
+  /**
+   * Fetch policy details from a snapshot
+   * GET /api/v1/policy-snapshots/:snapshot_id/policies?policy_id=...&organization_id=...&domain_name=...
+   * If policy_id not provided, returns all policies
+   */
+  const fetchPolicy = async (
+    snapshotId: string,
+    policyId: string,
+    organizationId: string,
+    domainName: string
+  ): Promise<ApiState<PolicyDefinition>> => {
+    const state: ApiState<PolicyDefinition> = {
+      data: null,
+      loading: true,
+      error: null
+    }
+
+    try {
+      const url = new URL(`${apiBase}/policy-snapshots/${snapshotId}/policies`)
+      url.searchParams.append('policy_id', policyId)
+      url.searchParams.append('organization_id', organizationId)
+      url.searchParams.append('domain_name', domainName)
+      
+      const response = await fetch(url.toString())
+      
+      if (!response.ok) {
+        state.error = {
+          code: 'FETCH_ERROR',
+          message: `Failed to fetch policy: ${response.statusText}`
+        }
+        return state
+      }
+
+      const json = await response.json()
+      const policy = json.policy || json
+      
+      // Transform server response to match PolicyDefinition type
+      state.data = {
+        id: policy.id || policyId,
+        verdict: policy.verdict,
+        conditions: policy.conditions || [],
+        explanation: policy.explanation
+      }
+    } catch (err) {
+      state.error = {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Unknown error'
+      }
+    } finally {
+      state.loading = false
+    }
+
+    return state
+  }
+
+  /**
+   * Fetch all policies from a snapshot
+   * GET /api/v1/policy-snapshots/:snapshot_id/policies?organization_id=...&domain_name=...
+   */
+  const fetchAllPolicies = async (
+    snapshotId: string,
+    organizationId: string,
+    domainName: string
+  ): Promise<ApiState<PolicyDefinition[]>> => {
+    const state: ApiState<PolicyDefinition[]> = {
+      data: null,
+      loading: true,
+      error: null
+    }
+
+    try {
+      const url = new URL(`${apiBase}/policy-snapshots/${snapshotId}/policies`)
+      url.searchParams.append('organization_id', organizationId)
+      url.searchParams.append('domain_name', domainName)
+      
+      const response = await fetch(url.toString())
+      
+      if (!response.ok) {
+        state.error = {
+          code: 'FETCH_ERROR',
+          message: `Failed to fetch policies: ${response.statusText}`
+        }
+        return state
+      }
+
+      const json = await response.json()
+      const policies = json.policies || []
+      
+      // Transform server response to match PolicyDefinition type
+      state.data = policies.map((policy: any) => ({
+        id: policy.id,
+        verdict: policy.verdict,
+        conditions: policy.conditions || [],
+        explanation: policy.explanation
+      }))
+    } catch (err) {
+      state.error = {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Unknown error'
+      }
+    } finally {
+      state.loading = false
+    }
+
+    return state
+  }
+
   return {
     fetchDecisions,
     fetchDomains,
     fetchDecisionTimeline,
-    fetchSpec
+    fetchSpec,
+    fetchPolicy,
+    fetchAllPolicies
   }
-}
+  }

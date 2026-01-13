@@ -69,9 +69,10 @@ export interface VerdictEvent {
   verdict: Verdict;
   spec_id: string;
   spec_version: number;
-  policy_snapshot_id: string;
+  snapshot_id: string;
   scope_id: string;
   domain_name: string;
+  organization_id: string;
   matched_scope: ScopeContext;
   matched_policies: PolicyDefinition[];
   matched_policy_ids: string[];
