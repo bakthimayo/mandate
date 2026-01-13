@@ -1,0 +1,467 @@
+{
+  "migrationGuide": {
+    "title": "DecisionSpec Migration: Adding BLOCK Policy Support",
+    "description": "Step-by-step guide to extend the existing refund spec to support the BLOCK policy for completed flights",
+    "status": "Applied to spec-refund-v1",
+    "from_version": "1.0.0",
+    "to_version": "1.1.0"
+  },
+  "step_1_extendedDecisionSpec": {
+    "description": "Original spec (v1.0.0) had 4 signals. We add 1 new signal for flight_status.",
+    "spec_id": "spec-refund-v1",
+    "version": "1.1.0",
+    "organization_id": "acme-airlines",
+    "domain_name": "customer-support",
+    "intent": "issue_refund",
+    "stage": "pre_commit",
+    "allowed_verdicts": ["ALLOW", "PAUSE", "BLOCK"],
+    "signals": [
+      {
+        "name": "has_monetary_value",
+        "type": "boolean",
+        "required": true,
+        "source": "context",
+        "description": "Indicates if the response mentions a specific dollar amount (e.g., $500)"
+      },
+      {
+        "name": "policy_keyword",
+        "type": "enum",
+        "values": ["refund", "charge", "fee", "escalate"],
+        "required": true,
+        "source": "context",
+        "description": "Detected policy-related keyword from the response text"
+      },
+      {
+        "name": "monetary_amount",
+        "type": "number",
+        "required": false,
+        "source": "context",
+        "description": "Extracted dollar amount (e.g., 500 from '$500')"
+      },
+      {
+        "name": "requires_escalation",
+        "type": "boolean",
+        "required": false,
+        "source": "context",
+        "description": "Whether the response explicitly avoids escalation language"
+      },
+      {
+        "name": "flight_status",
+        "type": "enum",
+        "values": ["scheduled", "departed", "completed", "cancelled"],
+        "required": false,
+        "source": "context",
+        "description": "Status of the flight - extracted from chatbot context or flight data lookup. NEW SIGNAL for BLOCK policy."
+      }
+    ],
+    "enforcement": {
+      "pause_requires": ["compliance-team"],
+      "resolution_timeout_minutes": 60
+    },
+    "status": "active",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-12T23:30:00Z",
+    "description": "Governs refund offers made by customer-support chatbot before customer delivery. Version 1.1.0 adds flight_status signal for BLOCK policy."
+  },
+  "step_2_newPolicy": {
+    "id": "pol-refund-002",
+    "spec_id": "spec-refund-v1",
+    "scope_id": "customer-support.chatbot-v3.production",
+    "organization_id": "acme-airlines",
+    "domain_name": "customer-support",
+    "name": "Block Refunds for Completed Flights",
+    "description": "Completely block any refund offer for flights that have already departed/completed. This prevents chatbot from making invalid refund commitments for non-refundable scenarios.",
+    "scope": {
+      "organization_id": "acme-airlines",
+      "domain_name": "customer-support",
+      "agent": "chatbot-v3",
+      "service": "chat-api",
+      "environment": "production"
+    },
+    "conditions": [
+      {
+        "field": "policy_keyword",
+        "operator": "==",
+        "value": "refund"
+      },
+      {
+        "field": "flight_status",
+        "operator": "==",
+        "value": "completed"
+      }
+    ],
+    "verdict": "BLOCK",
+    "rationale": "Completed flights cannot be refunded per company policy. Blocking prevents the chatbot from making invalid promises that would create customer service issues and compliance violations."
+  },
+  "step_3_policySnapshot": {
+    "description": "Updated policy snapshot now includes both PAUSE and BLOCK policies",
+    "snapshot_id": "snap-20260112-v2",
+    "version": 1,
+    "created_at": "2026-01-12T23:30:00Z",
+    "policies": [
+      {
+        "id": "pol-refund-001",
+        "spec_id": "spec-refund-v1",
+        "scope_id": "customer-support.chatbot-v3.production",
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "name": "High-Risk Refund Claims Require Escalation",
+        "description": "When a refund is claimed with a specific monetary amount, escalation to compliance team is mandatory",
+        "scope": {
+          "organization_id": "acme-airlines",
+          "domain_name": "customer-support",
+          "agent": "chatbot-v3",
+          "service": "chat-api",
+          "environment": "production"
+        },
+        "conditions": [
+          {
+            "field": "has_monetary_value",
+            "operator": "==",
+            "value": true
+          },
+          {
+            "field": "policy_keyword",
+            "operator": "==",
+            "value": "refund"
+          },
+          {
+            "field": "monetary_amount",
+            "operator": ">=",
+            "value": 100
+          }
+        ],
+        "verdict": "PAUSE"
+      },
+      {
+        "id": "pol-refund-002",
+        "spec_id": "spec-refund-v1",
+        "scope_id": "customer-support.chatbot-v3.production",
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "name": "Block Refunds for Completed Flights",
+        "description": "Completely block any refund offer for flights that have already departed/completed.",
+        "scope": {
+          "organization_id": "acme-airlines",
+          "domain_name": "customer-support",
+          "agent": "chatbot-v3",
+          "service": "chat-api",
+          "environment": "production"
+        },
+        "conditions": [
+          {
+            "field": "policy_keyword",
+            "operator": "==",
+            "value": "refund"
+          },
+          {
+            "field": "flight_status",
+            "operator": "==",
+            "value": "completed"
+          }
+        ],
+        "verdict": "BLOCK"
+      }
+    ]
+  },
+  "step_4_migrationInstructions": {
+    "description": "How to apply this migration in Mandate",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Update DecisionSpec",
+        "command": "POST /api/v1/specs",
+        "payload": "Updated spec-refund-v1 from v1.0.0 to v1.1.0",
+        "change": "Add flight_status signal (enum: scheduled|departed|completed|cancelled, optional, source: context)"
+      },
+      {
+        "step": 2,
+        "action": "Create new policy",
+        "command": "POST /api/v1/policies",
+        "payload": "pol-refund-002",
+        "change": "Add policy: Block Refunds for Completed Flights"
+      },
+      {
+        "step": 3,
+        "action": "Create new policy snapshot",
+        "command": "POST /api/v1/policy-snapshots",
+        "payload": "snap-20260112-v2",
+        "change": "Snapshot includes both pol-refund-001 (PAUSE) and pol-refund-002 (BLOCK)"
+      },
+      {
+        "step": 4,
+        "action": "Verify evaluator behavior",
+        "command": "Test with airline-block-policy-example.json",
+        "change": "Evaluate decision with completed flight_status → expect BLOCK verdict"
+      }
+    ]
+  },
+  "step_5_signalExtraction": {
+    "description": "How Observe phase extracts flight_status signal",
+    "source": "context",
+    "extraction_method": "pre-populated from decision context",
+    "notes": [
+      "flight_status is source='context', but NOT extracted from unstructured text",
+      "It comes from decision.context.flight_status (provided by chatbot/caller)",
+      "Chatbot/system must look up flight status and include it in the decision context",
+      "Deterministic extractors don't parse 'flight_status' from response text"
+    ],
+    "example_decisionContext": {
+      "customer_id": "C654321",
+      "booking_id": "BK456",
+      "flight_status": "completed",
+      "cancellation_reason": "customer_request"
+    },
+    "observePhasePopulation": {
+      "description": "Signal population in Observe phase",
+      "step_1_scope_and_timestamp_signals": {
+        "action": "Pre-populate scope and timestamp signals",
+        "signals": []
+      },
+      "step_2_deterministic_extraction": {
+        "action": "Extract from unstructured text",
+        "unstructured_context": "I understand your situation. You should be eligible for a refund of $375...",
+        "extracts": {
+          "has_monetary_value": true,
+          "policy_keyword": "refund",
+          "monetary_amount": 375
+        },
+        "does_not_extract": ["flight_status"]
+      },
+      "step_3_context_signals": {
+        "action": "Use decision context for remaining signals",
+        "decision_context": {
+          "flight_status": "completed"
+        },
+        "signals_populated": {
+          "flight_status": "completed"
+        }
+      },
+      "final_populated_signals": {
+        "has_monetary_value": true,
+        "policy_keyword": "refund",
+        "monetary_amount": 375,
+        "flight_status": "completed"
+      }
+    }
+  },
+  "step_6_signalValidation": {
+    "description": "Signal validation after Observe phase",
+    "required_signals": [
+      {
+        "name": "has_monetary_value",
+        "required": true,
+        "notes": "MUST be populated"
+      },
+      {
+        "name": "policy_keyword",
+        "required": true,
+        "notes": "MUST be populated"
+      }
+    ],
+    "optional_signals": [
+      {
+        "name": "monetary_amount",
+        "required": false,
+        "notes": "Optional but extracted if present"
+      },
+      {
+        "name": "requires_escalation",
+        "required": false,
+        "notes": "Optional"
+      },
+      {
+        "name": "flight_status",
+        "required": false,
+        "notes": "NEW optional signal. If not provided by caller, BLOCK policy won't match (won't block if status unknown)"
+      }
+    ],
+    "validation_result": "PASS (all required signals present)"
+  },
+  "step_7_evaluationFlow": {
+    "description": "How evaluator processes both policies",
+    "input": {
+      "decision_context": {
+        "has_monetary_value": true,
+        "policy_keyword": "refund",
+        "monetary_amount": 375,
+        "flight_status": "completed"
+      },
+      "spec_id": "spec-refund-v1",
+      "spec_version": "1.1.0"
+    },
+    "evaluation": [
+      {
+        "policy": "pol-refund-001 (PAUSE)",
+        "scope_match": true,
+        "conditions": [
+          { "has_monetary_value == true": true },
+          { "policy_keyword == 'refund'": true },
+          { "monetary_amount >= 100": true }
+        ],
+        "all_conditions_match": true,
+        "matched": true,
+        "verdict": "PAUSE"
+      },
+      {
+        "policy": "pol-refund-002 (BLOCK)",
+        "scope_match": true,
+        "conditions": [
+          { "policy_keyword == 'refund'": true },
+          { "flight_status == 'completed'": true }
+        ],
+        "all_conditions_match": true,
+        "matched": true,
+        "verdict": "BLOCK"
+      }
+    ],
+    "verdictResolution": {
+      "matched_verdicts": ["PAUSE", "BLOCK"],
+      "precedence": "BLOCK > PAUSE > ALLOW > OBSERVE",
+      "final_verdict": "BLOCK"
+    }
+  },
+  "step_8_databaseMigration": {
+    "description": "SQL migrations needed to support this change (append-only)",
+    "migrations": [
+      {
+        "description": "Insert updated spec into specs table",
+        "notes": "Previous spec-refund-v1 (v1.0.0) remains unchanged. New row for v1.1.0."
+      },
+      {
+        "description": "Insert new policy (pol-refund-002)",
+        "notes": "Append-only: new row inserted into policies table"
+      },
+      {
+        "description": "Create new policy snapshot (snap-20260112-v2)",
+        "notes": "Immutable snapshot includes both policies with current versions"
+      },
+      {
+        "description": "Historical decisions still reference old snapshot",
+        "notes": "Old snapshot (snap-20260112-v1) remains unchanged. Only new decisions use snap-20260112-v2."
+      }
+    ]
+  },
+  "step_9_behaviorChanges": {
+    "description": "Before and after behavior comparison",
+    "scenario": "Customer requests refund for completed flight with $375 amount",
+    "before_migration": {
+      "version": "spec-refund-v1 v1.0.0 with pol-refund-001 only",
+      "policies_evaluated": [
+        {
+          "policy": "pol-refund-001",
+          "matched": true,
+          "verdict": "PAUSE"
+        }
+      ],
+      "final_verdict": "PAUSE",
+      "chatbot_response": "Your request requires review by our compliance team...",
+      "outcome": "Escalated to human, even though refund is invalid"
+    },
+    "after_migration": {
+      "version": "spec-refund-v1 v1.1.0 with pol-refund-001 + pol-refund-002",
+      "policies_evaluated": [
+        {
+          "policy": "pol-refund-001",
+          "matched": true,
+          "verdict": "PAUSE"
+        },
+        {
+          "policy": "pol-refund-002",
+          "matched": true,
+          "verdict": "BLOCK"
+        }
+      ],
+      "final_verdict": "BLOCK",
+      "chatbot_response": "Unable to process. Please contact support...",
+      "outcome": "Blocked immediately, no unnecessary escalation"
+    },
+    "benefit": "BLOCK policy prevents escalating decisions that violate hard rules"
+  },
+  "step_10_backwardCompatibility": {
+    "description": "Is this migration backward compatible?",
+    "answer": "YES",
+    "reasons": [
+      "flight_status is OPTIONAL (required=false)",
+      "Decisions without flight_status still work fine",
+      "BLOCK policy requires flight_status=='completed' to match",
+      "If flight_status not provided, BLOCK policy won't match, no harm",
+      "PAUSE policy unchanged, still works as before",
+      "Old snapshots (snap-20260112-v1) never change",
+      "New decisions can use new snapshot (snap-20260112-v2)"
+    ],
+    "migration_risk": "LOW"
+  },
+  "step_11_testingChecklist": {
+    "before_deployment": [
+      {
+        "test": "Existing PAUSE behavior unchanged",
+        "scenario": "Refund with flight_status='scheduled', amount=$500",
+        "expected_verdict": "PAUSE",
+        "file": "airline-spec-and-policy.json"
+      },
+      {
+        "test": "New BLOCK behavior works",
+        "scenario": "Refund with flight_status='completed', amount=$375",
+        "expected_verdict": "BLOCK",
+        "file": "airline-block-policy-example.json"
+      },
+      {
+        "test": "BLOCK wins when both policies match",
+        "scenario": "Refund with flight_status='completed', amount=$500",
+        "expected_verdict": "BLOCK (not PAUSE)",
+        "notes": "Both policies match, but BLOCK has higher precedence"
+      },
+      {
+        "test": "Graceful degradation",
+        "scenario": "Refund without flight_status provided",
+        "expected_verdict": "PAUSE",
+        "notes": "BLOCK policy doesn't match (missing signal), PAUSE matches instead"
+      }
+    ]
+  },
+  "comparisionTable": {
+    "aspect": "Old vs New Spec and Policies",
+    "table": [
+      {
+        "aspect": "DecisionSpec version",
+        "before": "spec-refund-v1 v1.0.0",
+        "after": "spec-refund-v1 v1.1.0"
+      },
+      {
+        "aspect": "Signals",
+        "before": "4 signals (has_monetary_value, policy_keyword, monetary_amount, requires_escalation)",
+        "after": "5 signals (+ flight_status)"
+      },
+      {
+        "aspect": "Policies",
+        "before": "1 policy (pol-refund-001: PAUSE)",
+        "after": "2 policies (+ pol-refund-002: BLOCK)"
+      },
+      {
+        "aspect": "Policy Snapshot",
+        "before": "snap-20260112-v1 (1 policy)",
+        "after": "snap-20260112-v2 (2 policies)"
+      },
+      {
+        "aspect": "Verdict verdicts",
+        "before": "ALLOW, PAUSE, OBSERVE",
+        "after": "ALLOW, PAUSE, BLOCK, OBSERVE"
+      },
+      {
+        "aspect": "Default verdict",
+        "before": "ALLOW",
+        "after": "ALLOW (unchanged)"
+      }
+    ]
+  },
+  "files_to_update": {
+    "documentation": [
+      "README.md - Add reference to BLOCK policy example"
+    ],
+    "examples": [
+      "airline-spec-and-policy.json - Note that this uses v1.0.0",
+      "airline-block-policy-example.json - Note that this requires v1.1.0"
+    ]
+  }
+}

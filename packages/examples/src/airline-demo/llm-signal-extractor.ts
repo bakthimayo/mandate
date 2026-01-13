@@ -18,6 +18,7 @@
  * ```
  */
 
+import 'dotenv/config';
 import type { SignalDefinition } from '@mandate/shared';
 
 // ============================================================================
@@ -128,8 +129,10 @@ Rules:
 2. Use null for signals not found in the text
 3. Be conservative: only extract if clearly present
 4. For monetary amounts, extract the numeric value (e.g., 90 from "$90 USD")
-5. For enums, match against allowed values
-6. Confidence should reflect how certain you are (0.9+ for clear matches, 0.5-0.7 for ambiguous)
+5. For enums, match against allowed values exactly (only use provided enum values)
+6. For flight_status: infer from context clues (cancelled flight = "cancelled", completed = "past tense booking/flight", etc.)
+7. For requires_escalation: true if language suggests escalation/urgency (e.g., "urgent", "help", "need", "please"), false otherwise
+8. Confidence should reflect how certain you are (0.9+ for clear matches, 0.5-0.7 for inferred/ambiguous, 0 for not found)
 
 Signals to extract:
 ${signalDescriptions}`;
@@ -185,43 +188,75 @@ Return ONLY valid JSON with no markdown formatting. Example format:
  * Test the LLM extractor standalone
  */
 export async function testLLMExtractor(): Promise<void> {
-  const testText = 'I want to cancel the booking for BK3681 and I want you to refund the amount $90 USD please';
-
-  const signalDefs: SignalDefinition[] = [
-  {
-    name: 'has_monetary_value',
-    type: 'boolean',
-    required: true,
-    source: 'context',
-  },
-  {
-    name: 'monetary_amount',
-    type: 'number',
-    required: false,
-    source: 'context',
-  },
-  {
-    name: 'policy_keyword',
-    type: 'enum',
-    values: ['refund', 'charge', 'fee', 'escalate'],
-    required: false,
-    source: 'context',
-  },
-  {
-    name: 'booking_id',
-    type: 'string',
-    required: false,
-    source: 'context',
-  },
+  // Test scenario 1: Completed flight refund with urgency
+  const testScenarios = [
+    {
+      name: 'Completed Flight Refund (High Priority)',
+      text: 'I urgently need a refund of $250 for flight BK3681 that already departed. Please escalate this - it\u0027s critical!',
+    },
+    {
+      name: 'Scheduled Flight Cancellation',
+      text: 'Can I cancel my booking for BK5892 and get a refund of $150? The flight is scheduled for next week.',
+    },
+    {
+      name: 'Disputed Charge',
+      text: 'There\u0027s an unauthorized $500 charge on my account for flight BK2021 that completed last month.',
+    },
   ];
 
-  console.log('\n[TEST] Testing LLM Signal Extractor');
-  console.log(`[TEST] Text: "${testText}"`);
+  const signalDefs: SignalDefinition[] = [
+    {
+      name: 'has_monetary_value',
+      type: 'boolean',
+      required: true,
+      source: 'context',
+    },
+    {
+      name: 'monetary_amount',
+      type: 'number',
+      required: false,
+      source: 'context',
+    },
+    {
+      name: 'policy_keyword',
+      type: 'enum',
+      values: ['refund', 'charge', 'fee', 'escalate'],
+      required: true,
+      source: 'context',
+    },
+    {
+      name: 'booking_id',
+      type: 'string',
+      required: false,
+      source: 'context',
+    },
+    {
+      name: 'flight_status',
+      type: 'enum',
+      values: ['scheduled', 'departed', 'completed', 'cancelled'],
+      required: false,
+      source: 'context',
+    },
+    {
+      name: 'requires_escalation',
+      type: 'boolean',
+      required: false,
+      source: 'context',
+    },
+  ];
+
+  console.log('\n[TEST] Testing LLM Signal Extractor with Multiple Scenarios');
   console.log(`[TEST] Model: ${OPENAI_MODEL}`);
   console.log(`[TEST] Signals to extract:`, signalDefs.map((s) => s.name).join(', '));
 
-  const result = await extractSignalsWithLLM(testText, signalDefs, signalDefs);
-  console.log('\n[TEST] Final Result:', JSON.stringify(result, null, 2));
+  for (const scenario of testScenarios) {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[TEST SCENARIO] ${scenario.name}`);
+    console.log(`[TEST] Text: "${scenario.text}"`);
+
+    const result = await extractSignalsWithLLM(scenario.text, signalDefs, signalDefs);
+    console.log(`[TEST] Result:`, JSON.stringify(result, null, 2));
+  }
 }
 
 // Run test if executed directly (ES module compatible)

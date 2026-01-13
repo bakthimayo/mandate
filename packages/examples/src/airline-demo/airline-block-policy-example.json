@@ -1,0 +1,268 @@
+{
+  "scenario": "BLOCK Policy - Fraudulent Refund Prevention",
+  "description": "Example demonstrating BLOCK verdict when customer attempts to claim refund for already-completed flight",
+  "organization_id": "acme-airlines",
+  "domain_name": "customer-support",
+  "intent": "issue_refund",
+  "stage": "pre_commit",
+  "policy": {
+    "id": "pol-refund-002",
+    "spec_id": "spec-refund-v1",
+    "scope_id": "customer-support.chatbot-v3.production",
+    "organization_id": "acme-airlines",
+    "domain_name": "customer-support",
+    "name": "Block Refunds for Completed Flights",
+    "description": "Completely block any refund offer for flights that have already departed/completed. This prevents chatbot from making invalid refund commitments for non-refundable scenarios.",
+    "scope": {
+      "organization_id": "acme-airlines",
+      "domain_name": "customer-support",
+      "agent": "chatbot-v3",
+      "service": "chat-api",
+      "environment": "production"
+    },
+    "conditions": [
+      {
+        "field": "policy_keyword",
+        "operator": "==",
+        "value": "refund"
+      },
+      {
+        "field": "flight_status",
+        "operator": "==",
+        "value": "completed"
+      }
+    ],
+    "verdict": "BLOCK",
+    "rationale": "Completed flights cannot be refunded per company policy. Blocking prevents the chatbot from making invalid promises that would create customer service issues and compliance violations."
+  },
+  "extendedSignalDef": {
+    "name": "flight_status",
+    "type": "enum",
+    "values": ["scheduled", "departed", "completed", "cancelled"],
+    "required": true,
+    "source": "context",
+    "description": "Status of the flight - extracted from chatbot context or flight data lookup"
+  },
+  "exampleBlockScenario": {
+    "userInput": "My flight already left yesterday. Can I still get a refund?",
+    "chatbotDraftResponse": "I understand your situation. You should be eligible for a refund of $375. We can process that for you right away.",
+    "decisionRequest": {
+      "decision": {
+        "decision_id": "dec-airline-block-001",
+        "organization_id": "acme-airlines",
+        "domain_name": "customer-support",
+        "intent": "issue_refund",
+        "stage": "pre_commit",
+        "actor": "chatbot-v3",
+        "target": "customer:C654321",
+        "scope": {
+          "organization_id": "acme-airlines",
+          "domain_name": "customer-support",
+          "agent": "chatbot-v3",
+          "service": "chat-api",
+          "environment": "production"
+        },
+        "context": {
+          "customer_id": "C654321",
+          "booking_id": "BK456",
+          "flight_status": "completed",
+          "refund_amount": 375
+        },
+        "timestamp": "2026-01-12T15:00:00Z"
+      },
+      "unstructured_context": "I understand your situation. You should be eligible for a refund of $375. We can process that for you right away."
+    },
+    "observePhaseResults": {
+      "signals_before": {
+        "has_monetary_value": "undefined",
+        "policy_keyword": "undefined",
+        "monetary_amount": "undefined",
+        "flight_status": "undefined"
+      },
+      "extraction_process": {
+        "step_1_keyword_detection": {
+          "pattern": "refund|charge|fee|escalate",
+          "text_match": "refund",
+          "extracted": "refund",
+          "signals_populated": {
+            "policy_keyword": "refund"
+          }
+        },
+        "step_2_currency_detection": {
+          "pattern": "/\\$\\s*(\\d+)/",
+          "text_match": "$375",
+          "extracted": "375",
+          "signals_populated": {
+            "has_monetary_value": true,
+            "monetary_amount": 375
+          }
+        },
+        "step_3_flight_status_from_context": {
+          "source": "decision.context.flight_status",
+          "value": "completed",
+          "signals_populated": {
+            "flight_status": "completed"
+          }
+        }
+      },
+      "signals_after": {
+        "has_monetary_value": true,
+        "policy_keyword": "refund",
+        "monetary_amount": 375,
+        "flight_status": "completed"
+      }
+    },
+    "policyEvaluationResults": {
+      "scope_matching": {
+        "policy_scope": {
+          "organization_id": "acme-airlines",
+          "domain_name": "customer-support",
+          "agent": "chatbot-v3"
+        },
+        "decision_scope": {
+          "organization_id": "acme-airlines",
+          "domain_name": "customer-support",
+          "agent": "chatbot-v3",
+          "service": "chat-api",
+          "environment": "production"
+        },
+        "match": true
+      },
+      "condition_evaluation": [
+        {
+          "condition": {
+            "field": "policy_keyword",
+            "operator": "==",
+            "value": "refund"
+          },
+          "decision_value": "refund",
+          "result": true,
+          "notes": "Signal policy_keyword is 'refund'"
+        },
+        {
+          "condition": {
+            "field": "flight_status",
+            "operator": "==",
+            "value": "completed"
+          },
+          "decision_value": "completed",
+          "result": true,
+          "notes": "Signal flight_status is 'completed' (flight already departed)"
+        }
+      ],
+      "all_conditions_matched": true,
+      "policy_matched": true,
+      "matched_policy_ids": ["pol-refund-002"],
+      "verdict": "BLOCK"
+    },
+    "verdictResponse": {
+      "verdict_id": "verd-airline-block-001",
+      "organization_id": "acme-airlines",
+      "decision_id": "dec-airline-block-001",
+      "snapshot_id": "snap-20260112-v1",
+      "verdict": "BLOCK",
+      "matched_policy_ids": ["pol-refund-002"],
+      "timestamp": "2026-01-12T15:00:05Z",
+      "spec_id": "spec-refund-v1",
+      "spec_version": "1.0.0",
+      "scope_id": "customer-support.chatbot-v3.production",
+      "domain_name": "customer-support",
+      "owning_team": "compliance-team"
+    },
+    "chatbotBehavior": {
+      "description": "BLOCK verdict means the response must not be sent at all. Chatbot returns a safe generic message instead.",
+      "original_draft_response": "I understand your situation. You should be eligible for a refund of $375. We can process that for you right away.",
+      "safe_fallback_response": "Thank you for contacting us. I'm unable to process refund requests for flights that have already departed. Please contact our customer service team at support@acme-airlines.com or call 1-800-AIRLINES for assistance with your specific situation.",
+      "reasoning": "BLOCK verdict prevents sending any response that claims eligibility or promises a refund for a completed flight. The safe fallback directs customer to human support without making invalid commitments."
+    }
+  },
+  "comparisonPAUSEvsBLOCK": {
+    "PAUSE": {
+      "description": "Decision paused for human review",
+      "policy": "High-Risk Refund Claims Require Escalation",
+      "trigger": "Refund claim with monetary amount >= $100 for potentially-valid scenario",
+      "action": "Send safe fallback → Escalate to compliance team → Human decides",
+      "chatbot_response": "Your request requires review by our compliance team...",
+      "outcome": "Human can approve, modify, or reject"
+    },
+    "BLOCK": {
+      "description": "Decision blocked, no approval path",
+      "policy": "Block Refunds for Completed Flights",
+      "trigger": "Refund claim for flight that already departed",
+      "action": "Prevent response delivery entirely → Direct to human support",
+      "chatbot_response": "Unable to process. Please contact customer service...",
+      "outcome": "No refund offered; customer must contact support"
+    }
+  },
+  "verdictPrecedence": {
+    "description": "Multiple policies might match. Verdict precedence determines final result.",
+    "precedence": "BLOCK > PAUSE > ALLOW > OBSERVE",
+    "example": "If both PAUSE and BLOCK policies match, BLOCK wins and response is blocked entirely"
+  },
+  "keyDifferences": [
+    {
+      "aspect": "Signal Trigger",
+      "PAUSE": "has_monetary_value + policy_keyword + amount >= 100",
+      "BLOCK": "policy_keyword + flight_status == completed"
+    },
+    {
+      "aspect": "Verdict Issued",
+      "PAUSE": "PAUSE (requires human escalation)",
+      "BLOCK": "BLOCK (no escalation path)"
+    },
+    {
+      "aspect": "Customer Experience",
+      "PAUSE": "Safe holding message + escalation workflow",
+      "BLOCK": "Immediate safe fallback + support contact info"
+    },
+    {
+      "aspect": "Compliance Outcome",
+      "PAUSE": "Prevents unverified claims, enables valid refunds",
+      "BLOCK": "Prevents invalid claims entirely"
+    },
+    {
+      "aspect": "Risk Level",
+      "PAUSE": "Medium - needs verification",
+      "BLOCK": "High - no circumstances allow the action"
+    }
+  ],
+  "integrationCode": {
+    "description": "How chatbot handles BLOCK verdict",
+    "typescript": "if (result.verdict.verdict === 'BLOCK') {\n  // Do NOT send original draft\n  // Send safe generic fallback\n  await sendToCustomer(BLOCK_FALLBACK_RESPONSE);\n  console.log(`Decision blocked. Policy: ${result.verdict.matched_policy_ids[0]}`);\n  // No escalation - customer must self-serve to support\n} else if (result.verdict.verdict === 'PAUSE') {\n  // Send safe holding message\n  // Escalate internally\n  await sendToCustomer(PAUSE_FALLBACK_RESPONSE);\n  await escalateToComplianceTeam(result.decision);\n} else if (result.verdict.verdict === 'ALLOW') {\n  // Send original draft\n  await sendToCustomer(draftResponse);\n}"
+  },
+  "auditTrail": {
+    "description": "Timeline entries recorded for BLOCK decision",
+    "entries": [
+      {
+        "event": "Decision received",
+        "details": "Chatbot submitted draft response with refund claim"
+      },
+      {
+        "event": "Signal extraction",
+        "details": "policy_keyword='refund', flight_status='completed' extracted from context"
+      },
+      {
+        "event": "Signal validation",
+        "details": "All required signals populated"
+      },
+      {
+        "event": "Policy evaluation",
+        "details": "pol-refund-002 matched: both conditions true"
+      },
+      {
+        "event": "Verdict issued",
+        "details": "BLOCK - response not sent to customer"
+      },
+      {
+        "event": "Safe fallback sent",
+        "details": "Customer directed to support@acme-airlines.com"
+      }
+    ]
+  },
+  "testingNotes": {
+    "curl_request": "curl -X POST http://localhost:3000/api/v1/decisions -H 'Content-Type: application/json' -d '{\"decision\": {...}, \"unstructured_context\": \"I understand your situation. You should be eligible for a refund of $375...\"}'",
+    "expected_verdict": "BLOCK",
+    "expected_matched_policies": ["pol-refund-002"],
+    "verification": "Check that original draft response is NOT sent, safe fallback is sent instead, and timeline records the BLOCK verdict"
+  }
+}

@@ -5,10 +5,9 @@
  * across multiple decision scenarios. All responses are passed through Mandate
  * before reaching the customer.
  *
- * Predefined Policies (Showcase All Verdict Types):
+ * Predefined Policies (Showcase Multiple Verdict Types):
  * 1. pol-refund-001: HIGH-RISK (amount >= $100) → PAUSE (escalation required)
- * 2. pol-refund-002: SAFE REFUND (amount < $100) → ALLOW (automatic approval)
- * 3. pol-refund-003: AUDIT-ALL → OBSERVE (logging only)
+ * 2. pol-refund-002: COMPLETED FLIGHTS (flight_status == completed) → BLOCK (no refund)
  *
  * Verdict Outcomes:
  * - PAUSE: Safe fallback response, escalation to compliance team
@@ -17,6 +16,7 @@
  * - OBSERVE: Audit-only, original response sent
  */
 
+import 'dotenv/config';
 import { MandateClient } from '@mandate/sdk';
 import * as readline from 'readline';
 import { extractSignalsWithLLM } from './llm-signal-extractor.js';
@@ -28,6 +28,7 @@ import { extractSignalsWithLLM } from './llm-signal-extractor.js';
 const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
 const DOMAIN = 'customer-support';
 const SPEC_ID = 'spec-refund-v1';
+const SPEC_VERSION = '1.1.0'; // Supports both PAUSE and BLOCK policies
 
 // LLM Configuration
 const ENABLE_LLM_EXTRACTION = process.env.ENABLE_LLM_EXTRACTION === 'true';
@@ -154,7 +155,7 @@ function extractSignalsDeterministic(text: string): Record<string, any> {
   }
 
   // Extract escalation urgency
-  const escalationWords = ['immediately', 'automatic', 'right away', 'without deduction'];
+  const escalationWords = ['immediately', 'automatic', 'right away', 'without deduction', 'urgent', 'urgent', 'critical', 'help', 'please'];
   let hasEscalationLanguage = false;
   for (const word of escalationWords) {
     if (new RegExp(`\\b${word}\\b`, 'i').test(text)) {
@@ -163,6 +164,24 @@ function extractSignalsDeterministic(text: string): Record<string, any> {
     }
   }
   signals.requires_escalation = hasEscalationLanguage;
+
+  // Extract flight status from context clues
+  const flightStatusPatterns = [
+    { status: 'departed', patterns: ['already left', 'already departed', 'already flew', 'flight left', 'flight departed', 'has departed', 'took off'] },
+    { status: 'completed', patterns: ['already completed', 'flight completed', 'past month', 'last month', 'already finished'] },
+    { status: 'cancelled', patterns: ['cancelled', 'canceled', 'cancelled flight'] },
+    { status: 'scheduled', patterns: ['scheduled', 'next week', 'upcoming', 'future flight', 'booking for'] },
+  ];
+
+  for (const { status, patterns } of flightStatusPatterns) {
+    for (const pattern of patterns) {
+      if (new RegExp(`\\b${pattern}\\b`, 'i').test(text)) {
+        signals.flight_status = status;
+        break;
+      }
+    }
+    if (signals.flight_status) break;
+  }
 
   return signals;
 }
@@ -176,51 +195,63 @@ async function extractSignals(text: string, enableLLM: boolean = false): Promise
 
   // If LLM enabled, use it for signals not found deterministically
   if (enableLLM) {
-    const signalDefs = [
-      {
-        name: 'has_monetary_value',
-        type: 'boolean' as const,
-        required: true,
-        source: 'context' as const,
-      },
-      {
-        name: 'monetary_amount',
-        type: 'number' as const,
-        required: false,
-        source: 'context' as const,
-      },
-      {
-        name: 'policy_keyword',
-        type: 'enum' as const,
-        values: ['refund', 'charge', 'fee', 'escalate'],
-        required: false,
-        source: 'context' as const,
-      },
-      {
-        name: 'requires_escalation',
-        type: 'boolean' as const,
-        required: false,
-        source: 'context' as const,
-      },
-    ];
+  const signalDefs = [
+    {
+      name: 'has_monetary_value',
+      type: 'boolean' as const,
+      required: true,
+      source: 'context' as const,
+    },
+    {
+      name: 'monetary_amount',
+      type: 'number' as const,
+      required: false,
+      source: 'context' as const,
+    },
+    {
+      name: 'policy_keyword',
+      type: 'enum' as const,
+      values: ['refund', 'charge', 'fee', 'escalate'],
+      required: true,
+      source: 'context' as const,
+    },
+    {
+      name: 'requires_escalation',
+      type: 'boolean' as const,
+      required: false,
+      source: 'context' as const,
+    },
+    {
+      name: 'flight_status',
+      type: 'enum' as const,
+      values: ['scheduled', 'departed', 'completed', 'cancelled'],
+      required: false,
+      source: 'context' as const,
+    },
+  ];
 
     try {
       const llmSignals = await extractSignalsWithLLM(text, signalDefs, signalDefs);
 
       // Merge: LLM fills gaps left by deterministic
+      // LLM returns wrapped signals { value, confidence }, unwrap them
+      const unwrapLLMSignal = (signal: any) => signal?.value ?? null;
+      
       return {
         has_monetary_value:
           deterministicSignals.has_monetary_value !== false
             ? deterministicSignals.has_monetary_value
-            : llmSignals.has_monetary_value?.value ?? false,
+            : unwrapLLMSignal(llmSignals.has_monetary_value) ?? false,
         monetary_amount:
-          deterministicSignals.monetary_amount ?? llmSignals.monetary_amount?.value,
+          deterministicSignals.monetary_amount ?? unwrapLLMSignal(llmSignals.monetary_amount) ?? 0,
         policy_keyword:
-          deterministicSignals.policy_keyword || llmSignals.policy_keyword?.value,
+          deterministicSignals.policy_keyword || unwrapLLMSignal(llmSignals.policy_keyword),
         requires_escalation:
           deterministicSignals.requires_escalation ||
-          llmSignals.requires_escalation?.value ||
+          unwrapLLMSignal(llmSignals.requires_escalation) ||
           false,
+        flight_status:
+          deterministicSignals.flight_status || unwrapLLMSignal(llmSignals.flight_status),
       };
     } catch (error) {
       console.warn('[SIGNAL] LLM extraction failed, using deterministic only:', error);
@@ -286,6 +317,7 @@ async function processUserMessage(userMessage: string): Promise<string> {
     monetary_amount: userSignals.monetary_amount ?? draftSignals.monetary_amount,
     policy_keyword: userSignals.policy_keyword || draftSignals.policy_keyword,
     requires_escalation: draftSignals.requires_escalation, // Agent's language controls this
+    flight_status: userSignals.flight_status || draftSignals.flight_status, // User context takes precedence
   };
   console.log(`[OBSERVE] Merged signals:`, JSON.stringify(signals, null, 2));
 
@@ -401,16 +433,19 @@ Context:
   Booking ID: ${context.bookingId}
   Session: ${context.conversationId}
 
-Policies Active (Showcasing Different Verdicts):
-  ✓ pol-refund-001: $100+ refunds → PAUSE (escalation required)
-  ✓ pol-refund-002: <$100 refunds → ALLOW (auto-approved)
-  ✓ pol-refund-003: All requests → OBSERVE (audit logging)
+Policies Active (spec-refund-v1 v1.1.0):
+  ✓ pol-refund-001: $100+ refunds → PAUSE (escalation to compliance team)
+  ✓ pol-refund-002: Completed flights → BLOCK (no refund allowed)
+
+Spec Version: 1.1.0
+  Signals: has_monetary_value, policy_keyword, monetary_amount, requires_escalation, flight_status
+  Verdicts: ALLOW, PAUSE, BLOCK, OBSERVE
 
 Try these scenarios:
-  • "I want a refund for my $500 ticket"     (triggers PAUSE policy)
-  • "Can I get my $50 back?"                 (triggers ALLOW policy)
-  • "What's my booking status?"              (info query)
-  • "I need to cancel immediately"           (escalation language)
+  • "I want a refund for my $500 ticket"       (triggers PAUSE policy - high amount)
+  • "My flight already left, can I get refund?" (triggers BLOCK policy - flight_status=completed)
+  • "What's my booking status?"                (info query - no refund)
+  • "I need to cancel immediately"            (escalation language)
   • Type 'exit' to end the session
 
 ${'═'.repeat(80)}\n`);

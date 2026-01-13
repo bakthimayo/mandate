@@ -26,6 +26,7 @@
  * - Never bypass verdicts - treat them as governance signals
  */
 
+import 'dotenv/config';
 import { MandateClient } from '@mandate/sdk';
 
 const ORGANIZATION_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -41,31 +42,75 @@ const client = new MandateClient({
 // ============================================================================
 
 /**
- * Simulated third-party LLM chatbot.
+ * Simulated third-party LLM chatbot with context-aware responses.
  * Knows nothing about Mandate governance.
  */
-async function generateChatbotDraftResponse(userMessage: string): Promise<string> {
-  // In production, this would call an external LLM service
-  const responses: Record<string, string> = {
-    refund: `Yes, you can receive a full refund of $500 for your cancelled flight. \
-This will be processed immediately to your original payment method \
-without any deduction or fee.`,
+async function generateChatbotDraftResponse(
+  userMessage: string,
+  flightStatus?: string,
+  bookingAmount?: number
+): Promise<string> {
+  // In production, this would call an external LLM service (e.g., OpenAI)
+  
+  const isRefundRequest = userMessage.toLowerCase().includes('refund') || 
+                          userMessage.toLowerCase().includes('cancel') ||
+                          userMessage.toLowerCase().includes('money back');
 
-    'booking-info': `Your booking BK789 is confirmed for flight AA101 on January 15, 2026. \
-You paid $599.99 for the ticket.`,
-  };
-
-  // Keyword-based routing (simplified)
-  if (userMessage.toLowerCase().includes('refund') || userMessage.toLowerCase().includes('cancel')) {
-    return responses['refund'];
+  if (!isRefundRequest) {
+    return `Your booking is confirmed. How can I help you further?`;
   }
 
-  return responses['booking-info'];
+  // Context-aware refund response based on flight status
+  const amount = bookingAmount || 500;
+  
+  if (flightStatus === 'departed') {
+    return `I understand your flight has already departed. Regarding the refund: \
+for flights that have already departed, we typically cannot offer refunds. \
+However, let me check what options might be available for you. \
+The amount of $${amount} would normally be refundable if eligible.`;
+  }
+
+  if (flightStatus === 'completed') {
+    return `Your flight has been completed. For completed flights, refunds are generally \
+not available. However, we can explore if you're eligible for a credit or alternative solution.`;
+  }
+
+  if (flightStatus === 'scheduled') {
+    return `Yes, you can receive a full refund of $${amount} for your booking. \
+This will be processed to your original payment method immediately \
+without any deduction or fee.`;
+  }
+
+  // Default refund response
+  return `Yes, you can receive a refund of $${amount} for your booking. \
+This will be processed to your original payment method immediately \
+without any deduction or fee.`;
 }
 
 // ============================================================================
 // PART 2: Signal Extraction from Unstructured Response
 // ============================================================================
+
+/**
+ * Extracts flight status from user message context
+ */
+function extractFlightStatusFromMessage(text: string): string | undefined {
+  const flightStatusPatterns = [
+    { status: 'departed', patterns: ['already left', 'already departed', 'already flew', 'flight left', 'flight departed', 'has departed', 'took off'] },
+    { status: 'completed', patterns: ['already completed', 'flight completed', 'past month', 'last month', 'already finished', 'completed flight'] },
+    { status: 'cancelled', patterns: ['cancelled', 'canceled', 'cancelled flight'] },
+    { status: 'scheduled', patterns: ['scheduled', 'next week', 'upcoming', 'future flight', 'booking for'] },
+  ];
+
+  for (const { status, patterns } of flightStatusPatterns) {
+    for (const pattern of patterns) {
+      if (new RegExp(`\\b${pattern}\\b`, 'i').test(text)) {
+        return status;
+      }
+    }
+  }
+  return undefined;
+}
 
 /**
  * Simulates Observe phase: extracts signals deterministically from draft response
@@ -94,7 +139,7 @@ function extractSignalsFromResponse(text: string): Record<string, any> {
   }
 
   // Extract escalation indicator
-  const escalationWords = ['immediately', 'automatic', 'without exception'];
+  const escalationWords = ['immediately', 'automatic', 'without exception', 'without deduction', 'right away'];
   let requiresEscalation = false;
   for (const word of escalationWords) {
     if (new RegExp(`\\b${word}\\b`, 'i').test(text)) {
@@ -133,25 +178,31 @@ We appreciate your patience!`;
 async function chatbotWithGovernance(
   userMessage: string,
   customerId: string,
-  bookingId: string
+  bookingId: string,
+  bookingAmount?: number
 ): Promise<string> {
-  console.log('\n' + '='.repeat(80));
-  console.log('AIRLINE CHATBOT DEMO');
-  console.log('='.repeat(80));
+  // =========================================================================
+  // Step 0: Detect flight status from user message (before draft response)
+  // =========================================================================
+  const flightStatus = extractFlightStatusFromMessage(userMessage);
 
   // =========================================================================
   // Step 1: Generate draft response (chatbot unaware of governance)
   // =========================================================================
   console.log('\n[CHATBOT] Step 1: Generating draft response...');
-  const draftResponse = await generateChatbotDraftResponse(userMessage);
+  const draftResponse = await generateChatbotDraftResponse(userMessage, flightStatus, bookingAmount);
   console.log('[CHATBOT] Draft response:', draftResponse);
 
   // =========================================================================
   // Step 2: Extract signals from draft response (Observe phase)
   // =========================================================================
-  console.log('\n[CHATBOT] Step 2: Extracting signals from draft response...');
+  console.log('\n[OBSERVE] Step 2: Extracting signals from draft response...');
   const signals = extractSignalsFromResponse(draftResponse);
-  console.log('[OBSERVE] Extracted signals:', signals);
+  if (flightStatus) {
+    signals.flight_status = flightStatus;
+    console.log(`[OBSERVE] ✓ Merged flight status: "${flightStatus}"`);
+  }
+  console.log('[OBSERVE] Final extracted signals:', JSON.stringify(signals, null, 2));
 
   // =========================================================================
   // Step 3: Submit to Mandate for pre-delivery governance
@@ -263,34 +314,66 @@ async function chatbotWithGovernance(
 // ============================================================================
 
 async function runDemo() {
-  // Customer refund inquiry
-  const userMessage = 'I booked a flight but need to cancel. Can I get a refund?';
-  const customerId = 'C123456';
-  const bookingId = 'BK789';
+  // Test scenarios with different flight statuses
+  const scenarios = [
+    {
+      name: 'Departed Flight - High Risk Refund',
+      userMessage: 'My flight already left, can I get refund?',
+      customerId: 'C123456',
+      bookingId: 'BK6613',
+      amount: 250,
+    },
+    {
+      name: 'Scheduled Flight - Standard Refund',
+      userMessage: 'Can I cancel my booking for next week? I want a refund.',
+      customerId: 'C123457',
+      bookingId: 'BK7824',
+      amount: 450,
+    },
+    {
+      name: 'Completed Flight - No Refund',
+      userMessage: 'My flight completed last month. Can I get my money back?',
+      customerId: 'C123458',
+      bookingId: 'BK5291',
+      amount: 550,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    console.log('\n' + '='.repeat(80));
+    console.log(`SCENARIO: ${scenario.name}`);
+    console.log('='.repeat(80));
+
+    console.log(`\n👤 Customer: "${scenario.userMessage}"`);
+    console.log(`📋 Booking ID: ${scenario.bookingId}`);
+    console.log(`💰 Amount: $${scenario.amount}`);
+
+    const response = await chatbotWithGovernance(
+      scenario.userMessage,
+      scenario.customerId,
+      scenario.bookingId,
+      scenario.amount
+    );
+
+    console.log('\n' + '='.repeat(80));
+    console.log('FINAL RESPONSE SENT TO CUSTOMER');
+    console.log('='.repeat(80));
+    console.log(`\n🤖 Chatbot: "${response}"\n`);
+  }
 
   console.log('\n' + '='.repeat(80));
-  console.log('USER INPUT');
-  console.log('='.repeat(80));
-  console.log(`Customer: "${userMessage}"`);
-
-  const response = await chatbotWithGovernance(userMessage, customerId, bookingId);
-
-  console.log('\n' + '='.repeat(80));
-  console.log('FINAL RESPONSE SENT TO CUSTOMER');
-  console.log('='.repeat(80));
-  console.log(`Chatbot: "${response}"`);
-
-  console.log('\n' + '='.repeat(80));
-  console.log('SUMMARY');
+  console.log('DEMO COMPLETE - SUMMARY');
   console.log('='.repeat(80));
   console.log(`
-✅ Unstructured chatbot response submitted to Mandate
-✅ Signals populated deterministically from context
-✅ Policy evaluation performed by Mandate
-✅ Verdict issued and persisted in database
-✅ Response adapted based on verdict
+✅ Multiple scenarios tested with different flight statuses
+✅ Flight status extracted from user messages
+✅ Draft responses generated with context-aware content
+✅ Signals populated from both user message and agent response
+✅ Policy evaluation performed by Mandate for each scenario
+✅ Verdicts issued and persisted in database
+✅ Responses adapted based on verdict outcomes
 ✅ Decision and verdict recorded in database audit timeline
-✅ Outcome reported to Mandate
+✅ Outcomes reported to Mandate
   `);
 }
 

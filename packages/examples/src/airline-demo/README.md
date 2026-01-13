@@ -12,9 +12,12 @@ This demo showcases **Mandate governance in action**: intercepting an unverified
 
 | File | Purpose |
 |------|---------|
-| [`airline-chatbot-demo.md`](./airline-chatbot-demo.md) | Complete walkthrough of the demo scenario with explanations |
+| [`airline-chatbot-demo.md`](./airline-chatbot-demo.md) | Complete walkthrough of PAUSE policy scenario |
 | [`airline-chatbot-demo.ts`](./airline-chatbot-demo.ts) | TypeScript code showing chatbot integration with Mandate |
-| [`airline-spec-and-policy.json`](./airline-spec-and-policy.json) | Data definitions: DecisionSpec, Policy, Requests, Responses |
+| [`airline-spec-and-policy.json`](./airline-spec-and-policy.json) | PAUSE policy data: DecisionSpec v1.0.0, Policy, Requests, Responses |
+| [`airline-block-policy-example.json`](./airline-block-policy-example.json) | BLOCK policy example: Fraudulent refund prevention |
+| [`spec-migration-for-block.json`](./spec-migration-for-block.json) | Migration guide: Extending spec to v1.1.0 for BLOCK policy |
+| [`BLOCK-vs-PAUSE-Guide.md`](./BLOCK-vs-PAUSE-Guide.md) | Comparison of PAUSE and BLOCK verdicts with examples |
 | [`README.md`](./README.md) | This file |
 
 ---
@@ -49,6 +52,32 @@ This demo showcases **Mandate governance in action**: intercepting an unverified
 8. AUDIT TRAIL
    Decision and verdict recorded (immutable, append-only)
 ```
+
+---
+
+## Spec Migration: PAUSE → BLOCK
+
+This demo includes two example policies:
+
+1. **PAUSE Policy** (spec-refund-v1 v1.0.0)
+   - File: [`airline-spec-and-policy.json`](./airline-spec-and-policy.json)
+   - Scenario: $500 refund claim for future flight
+   - Signals: `has_monetary_value`, `policy_keyword`, `monetary_amount`
+   - Verdict: **PAUSE** (escalate for verification)
+
+2. **BLOCK Policy** (spec-refund-v1 v1.1.0 - requires migration)
+   - File: [`airline-block-policy-example.json`](./airline-block-policy-example.json)
+   - Scenario: $375 refund for completed flight
+   - New Signal: `flight_status` (added in v1.1.0)
+   - Verdict: **BLOCK** (no escalation, invalid claim prevented)
+
+**Migration Steps:**
+1. Add `flight_status` signal to DecisionSpec (v1.0.0 → v1.1.0)
+2. Create new BLOCK policy (pol-refund-002)
+3. Create new policy snapshot (snap-20260112-v2)
+4. Old decisions use old snapshot, new decisions use new snapshot
+
+See [`spec-migration-for-block.json`](./spec-migration-for-block.json) for full migration guide with SQL examples.
 
 ---
 

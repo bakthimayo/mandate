@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@mandate/sdk": "workspace:*",
-    "@mandate/shared": "workspace:*"
+    "@mandate/shared": "workspace:*",
+    "dotenv": "^16.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
